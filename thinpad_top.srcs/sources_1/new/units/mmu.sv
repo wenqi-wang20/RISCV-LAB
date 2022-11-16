@@ -46,7 +46,7 @@ module mmu (
 );
   // satp register
   typedef struct packed {
-    logic        mode; // Ignored...
+    logic        mode; // Mode 0: 'Bare' mode, 1: 'Sv32' mode
     logic [ 8:0] asid; // Address space identifier
     logic [21:0] ppn;  // the physical page number (PPN) of the root page table
   } satp_reg_t;
@@ -126,45 +126,6 @@ module mmu (
   assign v_addr_index = v_addr_i[31-`TLB_TAG_WIDTH:12];
   assign tlb_hit = tlb_entry.valid && tlb_entry.asid == satp.asid &&
                    tlb_entry.index == v_addr_index;
-  
-  // Initialization
-  // TODO: Flush the TLB
-  always_ff @(posedge clk_i) begin
-    if (rst_i) begin
-      tlb[0] <= 47'b0;
-      tlb[1] <= 47'b0;
-      tlb[2] <= 47'b0;
-      tlb[3] <= 47'b0;
-      tlb[4] <= 47'b0;
-      tlb[5] <= 47'b0;
-      tlb[6] <= 47'b0;
-      tlb[7] <= 47'b0;
-      tlb[8] <= 47'b0;
-      tlb[9] <= 47'b0;
-      tlb[10] <= 47'b0;
-      tlb[11] <= 47'b0;
-      tlb[12] <= 47'b0;
-      tlb[13] <= 47'b0;
-      tlb[14] <= 47'b0;
-      tlb[15] <= 47'b0;
-      tlb[16] <= 47'b0;
-      tlb[17] <= 47'b0;
-      tlb[18] <= 47'b0;
-      tlb[19] <= 47'b0;
-      tlb[20] <= 47'b0;
-      tlb[21] <= 47'b0;
-      tlb[22] <= 47'b0;
-      tlb[23] <= 47'b0;
-      tlb[24] <= 47'b0;
-      tlb[25] <= 47'b0;
-      tlb[26] <= 47'b0;
-      tlb[27] <= 47'b0;
-      tlb[28] <= 47'b0;
-      tlb[29] <= 47'b0;
-      tlb[30] <= 47'b0;
-      tlb[31] <= 47'b0;
-    end
-  end
   // === End TLB ===
 
   /* Reference: Privileged Architecture Specification,
@@ -174,13 +135,13 @@ module mmu (
   // Internal registers
   pte_t read_pte;
   reg pf_occur;
+  p_addr_t phy_addr;
   assign load_pf_o = pf_occur & load_en_i;
   assign store_pf_o = pf_occur & store_en_i;
   assign fetch_pf_o = pf_occur & fetch_en_i;
 
   // Utility signals
   wire r_en, w_en;
-
   assign r_en = load_en_i | fetch_en_i;
   assign w_en = store_en_i;
 
@@ -191,23 +152,40 @@ module mmu (
 
   assign a = cur_level == 1'b1 ? satp.ppn << `PAGE_SIZE_SHIFT
                                : {read_pte.ppn_1, read_pte.ppn_0} << `PAGE_SIZE_SHIFT;
-  assign pte_addr = cur_level == 1'b1 ? a + (v_addr_i.vpn_1 << `PTE_SIZE_SHIFT)
-                                      : a + (v_addr_i.vpn_0 << `PTE_SIZE_SHIFT);
+  assign pte_addr = cur_level == 1'b1 ? a + (v_addr.vpn_1 << `PTE_SIZE_SHIFT)
+                                      : a + (v_addr.vpn_0 << `PTE_SIZE_SHIFT);
 
   typedef enum logic [2:0] {
     STATE_FETCH_PTE      = 0,
     STATE_DECODE_PTE     = 1,
     STATE_MEM_ACCESS     = 2,
     STATE_MEM_ACCESS_TLB = 3,
-    STATE_DONE           = 3
+    STATE_DONE           = 4
   } state_t;
 
   state_t state;
 
+  // TLB initialization
+  genvar i;
+  generate
+    for (i = 0; i < 32; i = i + 1) begin
+      always_ff @(posedge clk_i) begin
+        if (rst_i) begin
+          tlb[i] <= 47'b0;
+        end
+        if (state == STATE_FETCH_PTE && flush_en_i) begin
+          tlb[i] <= 47'b0;
+          ack_o <= 1'b1;
+          state <= STATE_DONE;
+        end
+      end
+    end
+  endgenerate
+
   always_ff @(posedge clk_i) begin
     if (rst_i) begin
       // Internal registers
-      state <= STATE_IDLE;
+      state <= STATE_FETCH_PTE;
       cur_level <= 1'b1;
       pf_occur <= 1'b0;
       // Outputs
@@ -219,13 +197,15 @@ module mmu (
     end else begin
       case (state)
         STATE_FETCH_PTE: begin
-          // First, search in TLB
-          // Initiate translation on enabling signals
-          if (r_en | w_en) begin
+          if (r_en | w_en & ~flush_en_i) begin
             if (tlb_hit) begin
-              state <= STATE_MEM_ACCESS_TLB;
+              phy_addr <= {tlb_entry.ppn, v_addr.offset};
+              state <= STATE_MEM_ACCESS;
+            end else if (satp.mode == 1'b0) begin
+              phy_addr <= v_addr;
+              state <= STATE_MEM_ACCESS;
             end else begin
-              // Send wishbone request
+              // Send wishbone request to retrive PTE
               wb_cyc_o <= 1'b1;
               wb_stb_o <= 1'b1;
               wb_adr_o <= pte_addr;
@@ -255,9 +235,41 @@ module mmu (
             state <= STATE_DONE;
           end else begin
             // The PTE is valid
+            // TODO: Privilege mode checkings
             if (read_pte.r | read_pte.x) begin
-              // Leaf PTE, access memory
-              state <= STATE_MEM_ACCESS;
+              // Leaf PTE
+              if ((load_pf_o & ~read_pte.r) |
+                  (store_pf_o & ~read_pte.w) |
+                  (fetch_pf_o & ~read_pte.x)) begin
+                // Illegal memory access, raise page fault
+                pf_occur <= 1'b1;
+                ack_o <= 1'b1;
+                state <= STATE_DONE;
+              end else if (cur_level == 1'b1 && read_pte.ppn_0 != 0) begin
+                // Misaligned superpage, raise page fault
+                pf_occur <= 1'b1;
+                ack_o <= 1'b1;
+                state <= STATE_DONE;
+              end else if (~read_pte.a | (store_en_i & ~read_pte.d)) begin
+                // According to the spec, we can either raise a page fault or update the PTE
+                // FIXME: Just raise a page fault here, I don't know if this works
+                pf_occur <= 1'b1;
+                ack_o <= 1'b1;
+                state <= STATE_DONE;
+              end else begin
+                // Valid memory access, update TLB
+                tlb[tlb_tag].index <= v_addr_index;
+                tlb[tlb_tag].ppn <= {read_pte.ppn_1, read_pte.ppn_0};
+                tlb[tlb_tag].asid <= satp.asid;
+                tlb[tlb_tag].valid <= 1'b1;
+
+                // Translate into physical address
+                phy_addr.ppn_1 <= read_pte.ppn_1;
+                phy_addr.ppn_0 <= cur_level == 1'b1 ? v_addr.vpn_0 : 0;
+                phy_addr.offset <= v_addr.offset;
+
+                state <= STATE_MEM_ACCESS;
+              end
             end else begin
               // Non-leaf PTE
               if (cur_level == 1'b0) begin
@@ -276,60 +288,10 @@ module mmu (
         end
 
         STATE_MEM_ACCESS: begin
-          // Not implementing privilege mode checking here
-          if ((load_pf_o & ~read_pte.r) |
-              (store_pf_o & ~read_pte.w) |
-              (fetch_pf_o & ~read_pte.x)) begin
-            // Illegal memory access, raise page fault
-            pf_occur <= 1'b1;
-            ack_o <= 1'b1;
-            state <= STATE_DONE;
-          end else if (cur_level == 1'b1 && read_pte.ppn_0 != 0) begin
-            // Misaligned superpage, raise page fault
-            pf_occur <= 1'b1;
-            ack_o <= 1'b1;
-            state <= STATE_DONE;
-          end else if (~read_pte.a | (store_en_i & ~read_pte.d)) begin
-            // According to the spec, we can either raise a page fault or update the PTE
-            // FIXME: Just raise a page fault here, I don't know if this works
-            pf_occur <= 1'b1;
-            ack_o <= 1'b1;
-            state <= STATE_DONE;
-          end else begin
-            // Valid for memory access, add the entry to TLB
-            tlb[tlb_tag].index <= v_addr_index;
-            tlb[tlb_tag].ppn <= {read_pte.ppn_1, read_pte.ppn_0};
-            tlb[tlb_tag].asid <= satp_i.asid;
-            tlb[tlb_tag].valid <= 1'b1;
-            
-            // Finally, we can access the memory
-            wb_cyc_o <= 1'b1;
-            wb_stb_o <= 1'b1;
-            wb_adr_o <= {read_pte.ppn_1,
-                         cur_level == 1'b1 ? v_addr_i.vpn_0 : 10'b0,
-                         v_addr_i.offset};
-            wb_dat_o <= data_i;
-            wb_sel_o <= sel_i;
-            wb_we_o <= store_en_i;
-          end
-
-          if (wb_ack_i) begin
-              // End wishbone request
-              wb_cyc_o <= 1'b0;
-              wb_stb_o <= 1'b0;
-              wb_we_o <= 1'b0;
-              data_o <= wb_dat_i;
-
-              ack_o <= 1'b1;
-              state <= STATE_DONE;
-          end
-        end
-
-        STATE_MEM_ACCESS: begin
-          // Access memory directly
+          // Generate wishbone request
           wb_cyc_o <= 1'b1;
           wb_stb_o <= 1'b1;
-          wb_adr_o <= {tlb_entry.ppn, v_addr_i.offset};
+          wb_adr_o <= phy_addr;
           wb_dat_o <= data_i;
           wb_sel_o <= sel_i;
           wb_we_o <= store_en_i;
