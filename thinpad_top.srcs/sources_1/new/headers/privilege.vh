@@ -1,0 +1,3 @@
+`define PRIVILEDGE_U 2'b00
+`define PRIVILEDGE_S 2'b01
+`define PRIVILEDGE_M 2'b11
