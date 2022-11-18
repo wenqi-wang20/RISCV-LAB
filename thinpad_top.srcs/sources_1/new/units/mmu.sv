@@ -1,6 +1,8 @@
 `default_nettype none
 `timescale 1ns / 1ps
 
+`include "../headers/csr.vh"
+
 `define PAGE_SIZE       4096
 `define PAGE_SIZE_SHIFT 12
 `define PTE_SIZE        4
@@ -44,13 +46,6 @@ module mmu (
   output reg  [ 3:0] wb_sel_o,
   output reg         wb_we_o
 );
-  // satp register
-  typedef struct packed {
-    logic        mode; // Mode 0: 'Bare' mode, 1: 'Sv32' mode
-    logic [ 8:0] asid; // Address space identifier
-    logic [21:0] ppn;  // the physical page number (PPN) of the root page table
-  } satp_reg_t;
-
   // Virtual address
   typedef struct packed {
     logic [ 9:0] vpn_1;
@@ -98,9 +93,9 @@ module mmu (
 
   // ==== Begin type casting ====
   v_addr_t v_addr;
-  satp_reg_t satp;
+  csr_satp_t satp;
   assign v_addr = v_addr_t'(v_addr_i);
-  assign satp = satp_reg_t'(satp_i);
+  assign satp = csr_satp_t'(satp_i);
   // ==== End type casting ====
 
   // ==== Begin TLB ====
