@@ -7,19 +7,19 @@ module instr_decoder(
   output reg  [ 3:0] alu_op_o,
   output reg         alu_a_sel_o,  // 0: rs1, 1: pc
   output reg         alu_b_sel_o,  // 0: rs2, 1: imm
-  output wire [ 4:0] reg_raddr_a_o,
-  output wire [ 4:0] reg_raddr_b_o,
-  output reg  [ 4:0] reg_waddr_o,
-  output reg         reg_wen_o
+  output wire [ 4:0] rf_raddr_a_o,
+  output wire [ 4:0] rf_raddr_b_o,
+  output reg  [ 4:0] rf_waddr_o,
+  output reg         rf_wen_o
 );
   logic [6:0] opcode;
   logic [2:0] funct3;
   logic [6:0] funct7;
   logic [4:0] rs1, rs2, rd;
 
-  assign reg_raddr_a_o = rs1;
-  assign reg_raddr_b_o = rs2;
-  assign reg_waddr_o  = rd;
+  assign rf_raddr_a_o = rs1;
+  assign rf_raddr_b_o = rs2;
+  assign rf_waddr_o  = rd;
 
   always_comb begin  
     rs1  = instr_i[19:15];
@@ -53,11 +53,11 @@ module instr_decoder(
 
     // memory enable
     case (opcode)
-      7'b000_0011: begin
-        mem_en_o = 1'b1;
+      7'b000_0011: begin // load
+        mem_en_o = (rd != 5'b000000) ? 1'b1 : 1'b0;
         mem_wen_o = 1'b0;
       end
-      7'b010_0011: begin
+      7'b010_0011: begin // store
         mem_en_o = 1'b1;
         mem_wen_o = 1'b1;
       end
@@ -170,34 +170,34 @@ module instr_decoder(
     // register file write enable
     case (opcode)
       7'b011_0111: begin  // lui
-        reg_wen_o = 1'b0;
+        rf_wen_o = 1'b0;
       end
       7'b001_0111: begin  // auipc
-        reg_wen_o = 1'b0;
+        rf_wen_o = 1'b0;
       end
       7'b110_1111: begin  // jal
-        reg_wen_o = 1'b1;
+        rf_wen_o = (rd != 5'b00000) ? 1'b1 : 1'b0;
       end
       7'b110_0111: begin  // jalr
-        reg_wen_o = 1'b1;
+        rf_wen_o = (rd != 5'b00000) ? 1'b1 : 1'b0;
       end
       7'b110_0011: begin // branch
-        reg_wen_o = 1'b0;
+        rf_wen_o = 1'b0;
       end
       7'b000_0011: begin  // load
-        reg_wen_o = 1'b1;
+        rf_wen_o = (rd != 5'b00000) ? 1'b1 : 1'b0;
       end
       7'b010_0011: begin  // store
-        reg_wen_o = 1'b0;
+        rf_wen_o = 1'b0;
       end
       7'b001_0011: begin  // immediate
-        reg_wen_o = 1'b1;
+        rf_wen_o = (rd != 5'b00000) ? 1'b1 : 1'b0;
       end
       7'b011_0011: begin  // register
-        reg_wen_o = 1'b1;
+        rf_wen_o = (rd != 5'b00000) ? 1'b1 : 1'b0;
       end
       default: begin
-        reg_wen_o = 1'b0;
+        rf_wen_o = 1'b0;
       end
     endcase
   end
