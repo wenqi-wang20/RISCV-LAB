@@ -36,10 +36,10 @@ module mmu_arbiter_2 #
     input  wire                    clk,
     input  wire                    rst,
 
+    input wire [31:0] mmu_satp_i,
     /*
      * MMU master 0 input
      */
-    input wire [31:0] mmu0_satp_i,
 
     // Data read and write
     input  wire [31:0] mmu0_v_addr_i,
@@ -62,7 +62,6 @@ module mmu_arbiter_2 #
     /*
      * MMU master 1 input
      */
-    input wire [31:0] mmu1_satp_i,
 
     // Data read and write
     input  wire [31:0] mmu1_v_addr_i,
@@ -132,9 +131,7 @@ assign mmu1_store_pf_o = mmu_store_pf_i & mmu1_sel;
 assign mmu1_fetch_pf_o = mmu_fetch_pf_i & mmu1_sel;
 
 // slave
-assign mmu_satp_o = mmu0_sel ? mmu0_satp_i :
-                    mmu1_sel ? mmu1_satp_i :
-                    32'h0;
+assign mmu_satp_o = mmu1_satp_i;
 
 assign mmu_v_addr_o = mmu0_sel ? mmu0_v_addr_i :
                       mmu1_sel ? mmu1_v_addr_i :
