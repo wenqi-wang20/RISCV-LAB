@@ -36,7 +36,6 @@ module mmu_arbiter_2 #
     input  wire                    clk,
     input  wire                    rst,
 
-    input wire [31:0] mmu_satp_i,
     /*
      * MMU master 0 input
      */
@@ -47,6 +46,7 @@ module mmu_arbiter_2 #
     output wire [31:0] mmu0_data_o,
     input  wire [ 3:0] mmu0_sel_i,
     output wire        mmu0_ack_o,
+    output wire        mmu0_selected_o,
 
     // Enabling signals
     input wire mmu0_load_en_i,  // Load
@@ -69,6 +69,7 @@ module mmu_arbiter_2 #
     output wire [31:0] mmu1_data_o,
     input  wire [ 3:0] mmu1_sel_i,
     output wire        mmu1_ack_o,
+    output wire        mmu1_selected_o,
 
     // Enabling signals
     input wire mmu1_load_en_i,  // Load
@@ -84,7 +85,6 @@ module mmu_arbiter_2 #
     /*
      * MMU slave output
      */
-    output wire [31:0] mmu_satp_o,
 
     // Data read and write
     output wire [31:0] mmu_v_addr_o,
@@ -117,21 +117,22 @@ wire mmu0_sel = grant[0] & grant_valid;
 wire mmu1_sel = grant[1] & grant_valid;
 
 // master 0
-assign mmu0_dat_o      = mmu_data_i;
+assign mmu0_data_o     = mmu_data_i;
 assign mmu0_ack_o      = mmu_ack_i      & mmu0_sel;
 assign mmu0_load_pf_o  = mmu_load_pf_i  & mmu0_sel;
 assign mmu0_store_pf_o = mmu_store_pf_i & mmu0_sel;
 assign mmu0_fetch_pf_o = mmu_fetch_pf_i & mmu0_sel;
+assign mmu0_selected_o      = mmu0_sel;
 
 // master 1
-assign mmu1_dat_o      = mmu_data_i;
+assign mmu1_data_o     = mmu_data_i;
 assign mmu1_ack_o      = mmu_ack_i      & mmu1_sel;
 assign mmu1_load_pf_o  = mmu_load_pf_i  & mmu1_sel;
 assign mmu1_store_pf_o = mmu_store_pf_i & mmu1_sel;
 assign mmu1_fetch_pf_o = mmu_fetch_pf_i & mmu1_sel;
+assign mmu1_selected_o      = mmu1_sel;
 
 // slave
-assign mmu_satp_o = mmu1_satp_i;
 
 assign mmu_v_addr_o = mmu0_sel ? mmu0_v_addr_i :
                       mmu1_sel ? mmu1_v_addr_i :

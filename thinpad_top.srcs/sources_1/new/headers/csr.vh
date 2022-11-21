@@ -93,10 +93,6 @@ typedef struct packed {
 typedef logic [63:0] csr_mtime_t;
 typedef logic [63:0] csr_mtimecmp_t;
 
-typedef logic [31:0] csr_mscratch_t;
-
-typedef logic [31:0] csr_mepc_t;
-
 typedef struct packed {
   logic        interrupt;
   logic [30:0] exc_code; // WLRL, spec p37

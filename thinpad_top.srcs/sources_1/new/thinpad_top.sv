@@ -80,7 +80,7 @@ module thinpad_top (
     output wire       video_de      // 行数据有效信号，用于区分消隐区
 );
 
-  /* =========== Demo code begin =========== */
+  /* =========== Demo code begin =========== 
 
   // PLL 分频示例
   logic locked, clk_10M, clk_20M;
@@ -221,5 +221,443 @@ module thinpad_top (
       .data_enable(video_de)
   );
   /* =========== Demo code end =========== */
+
+  /* =========== Demo code begin =========== */
+
+  // PLL 分频示例
+  logic locked, clk_10M, clk_20M;
+  pll_example clock_gen (
+      // Clock in ports
+      .clk_in1(clk_50M),  // 外部时钟输入
+      // Clock out ports
+      .clk_out1(clk_10M),  // 时钟输出 1，频率在 IP 配置界面中设置
+      .clk_out2(clk_20M),  // 时钟输出 2，频率在 IP 配置界面中设置
+      // Status and control signals
+      .reset(reset_btn),  // PLL 复位输入
+      .locked(locked)  // PLL 锁定指示输出，"1"表示时钟稳定，
+                       // 后级电路复位信号应当由它生成（见下）
+  );
+
+  logic reset_of_clk10M;
+  // 异步复位，同步释放，将 locked 信号转为后级电路的复位 reset_of_clk10M
+  always_ff @(posedge clk_10M or negedge locked) begin
+    if (~locked) reset_of_clk10M <= 1'b1;
+    else reset_of_clk10M <= 1'b0;
+  end
+
+  /* =========== Demo code end =========== */
+
+  logic sys_clk;
+  logic sys_rst;
+
+  assign sys_clk = clk_10M;
+  assign sys_rst = reset_of_clk10M;
+
+  // 本实验不使用 CPLD 串口，禁用防止总线冲突
+  assign uart_rdn = 1'b1;
+  assign uart_wrn = 1'b1;
+
+  /* =========== Lab Controller begin =========== */
+  // Lab Controller => Wishbone MUX (Slave)
+  logic        wbm_cyc_o;
+  logic        wbm_stb_o;
+  logic        wbm_ack_i;
+  logic [31:0] wbm_adr_o;
+  logic [31:0] wbm_dat_o;
+  logic [31:0] wbm_dat_i;
+  logic [ 3:0] wbm_sel_o;
+  logic        wbm_we_o;
+
+  logic [31:0] mmu_satp;
+  logic [31:0] mmu_v_addr;
+  logic [31:0] mmu_wdata;
+  logic [31:0] mmu_rdata;
+  logic [ 3:0] mmu_sel;
+  logic        mmu_ack;
+  logic        mmu_load_en;
+  logic        mmu_store_en;
+  logic        mmu_fetch_en;
+  logic        mmu_flush_en;
+  logic        mmu_load_pf;
+  logic        mmu_store_pf;
+  logic        mmu_fetch_pf;
+
+  logic [31:0] mmu0_v_addr;
+  logic [31:0] mmu0_wdata;
+  logic [31:0] mmu0_rdata;
+  logic [ 3:0] mmu0_sel;
+  logic        mmu0_ack;
+  logic        mmu0_selected;
+  logic        mmu0_load_en;
+  logic        mmu0_store_en;
+  logic        mmu0_fetch_en;
+  logic        mmu0_flush_en;
+  logic        mmu0_load_pf;
+  logic        mmu0_store_pf;
+  logic        mmu0_fetch_pf;
+
+  logic [31:0] mmu1_v_addr;
+  logic [31:0] mmu1_wdata;
+  logic [31:0] mmu1_rdata;
+  logic [ 3:0] mmu1_sel;
+  logic        mmu1_ack;
+  logic        mmu1_selected;
+  logic        mmu1_load_en;
+  logic        mmu1_store_en;
+  logic        mmu1_fetch_en;
+  logic        mmu1_flush_en;
+  logic        mmu1_load_pf;
+  logic        mmu1_store_pf;
+  logic        mmu1_fetch_pf;
+
+  logic [ 4:0] rf_raddr_a;
+  logic [ 4:0] rf_raddr_b;
+  logic [31:0] rf_rdata_a;
+  logic [31:0] rf_rdata_b;
+  logic [31:0] rf_wdata;
+  logic [ 4:0] rf_waddr;
+  logic        rf_wen;
+
+  mmu u_mmu(
+    .clk_i(sys_clk),
+    .rst_i(sys_rst),
+
+    // Content of satp register, should persist during request
+    .satp_i(mmu_satp),
+
+    // Data read and write
+    .v_addr_i(mmu_v_addr),
+    .data_i(mmu_wdata),
+    .data_o(mmu_rdata),
+    .sel_i(mmu_sel),
+    .ack_o(mmu_ack),
+
+    // Enabling signals
+    .load_en_i(mmu_load_en),  // Load
+    .store_en_i(mmu_store_en), // Store
+    .fetch_en_i(mmu_fetch_en), // Fetch instruction
+    .flush_en_i(mmu_flush_en), // Flush the TLB
+
+    // Page faults
+    .load_pf_o(mmu_load_pf),
+    .store_pf_o(mmu_store_pf),
+    .fetch_pf_o(mmu_fetch_pf),
+
+    // Wishbone master
+    .wb_cyc_o(wbm_cyc_o),
+    .wb_stb_o(wbm_stb_o),
+    .wb_ack_i(wbm_ack_i),
+    .wb_adr_o(wbm_adr_o),
+    .wb_dat_o(wbm_dat_o),
+    .wb_dat_i(wbm_dat_i),
+    .wb_sel_o(wbm_sel_o),
+    .wb_we_o(wbm_we_o)
+  );
+
+  mmu_arbiter_2 u_mmu_arbiter_2(
+    .clk(sys_clk),
+    .rst(sys_rst),
+
+    /*
+     * MMU master 0 input
+     */
+
+    // Data read and write
+    .mmu0_v_addr_i(mmu0_v_addr),
+    .mmu0_data_i(mmu0_wdata),
+    .mmu0_data_o(mmu0_rdata),
+    .mmu0_sel_i(mmu0_sel),
+    .mmu0_ack_o(mmu0_ack),
+    .mmu0_selected_o(mmu0_selected),
+
+    // Enabling signals
+    .mmu0_load_en_i(mmu0_load_en),  // Load
+    .mmu0_store_en_i(mmu0_store_en), // Store
+    .mmu0_fetch_en_i(mmu0_fetch_en), // Fetch instruction
+    .mmu0_flush_en_i(mmu0_flush_en), // Flush the TLB
+
+    // Page faults
+    .mmu0_load_pf_o(mmu0_load_pf),
+    .mmu0_store_pf_o(mmu0_store_pf),
+    .mmu0_fetch_pf_o(mmu0_fetch_pf),
+
+    /*
+     * MMU master 1 input
+     */
+
+    // Data read and write
+    .mmu1_v_addr_i(mmu1_v_addr),
+    .mmu1_data_i(mmu1_wdata),
+    .mmu1_data_o(mmu1_rdata),
+    .mmu1_sel_i(mmu1_sel),
+    .mmu1_ack_o(mmu1_ack),
+    .mmu1_selected_o(mmu1_selected),
+
+    // Enabling signals
+    .mmu1_load_en_i(mmu1_load_en),  // Load
+    .mmu1_store_en_i(mmu1_store_en), // Store
+    .mmu1_fetch_en_i(mmu1_fetch_en), // Fetch instruction
+    .mmu1_flush_en_i(mmu1_flush_en), // Flush the TLB
+
+    // Page faults
+    .mmu1_load_pf_o(mmu1_load_pf),
+    .mmu1_store_pf_o(mmu1_store_pf),
+    .mmu1_fetch_pf_o(mmu1_fetch_pf),
+
+    /*
+     * MMU slave output
+     */
+
+    // Data read and write
+    .mmu_v_addr_o(mmu_v_addr),
+    .mmu_data_o(mmu_wdata),
+    .mmu_data_i(mmu_rdata),
+    .mmu_sel_o(mmu_sel),
+    .mmu_ack_i(mmu_ack),
+
+    // Enabling signals
+    .mmu_load_en_o(mmu_load_en),   // Load
+    .mmu_store_en_o(mmu_store_en), // Store
+    .mmu_fetch_en_o(mmu_fetch_en), // Fetch instruction
+    .mmu_flush_en_o(mmu_flush_en), // Flush the TLB
+
+    // Page faults
+    .mmu_load_pf_i(mmu_load_pf),
+    .mmu_store_pf_i(mmu_store_pf),
+    .mmu_fetch_pf_i(mmu_fetch_pf)
+  );
+
+  regfile u_regfile(
+    .clk_i(sys_clk),
+    .rst_i(sys_rst),
+
+    .raddr_a_i(rf_raddr_a),
+    .raddr_b_i(rf_raddr_b),
+    .rdata_a_o(rf_rdata_a),
+    .rdata_b_o(rf_rdata_b),
+    .wdata_i(rf_wdata),
+    .waddr_i(rf_waddr),
+    .wen_i(rf_wen)
+  );
+
+  pipeline_controller u_pipeline_controller(
+    .clk_i(sys_clk),
+    .rst_i(sys_rst),
+
+
+    /* ========== MMU signals ========== */
+    .mmu_satp_o(mmu_satp),
+
+    // MEM-stage: load/store data
+    .mmu0_data_i(mmu0_rdata),
+    .mmu0_ack_i(mmu0_ack),
+    .mmu0_selected_i(mmu0_selected),
+    .mmu0_v_addr_o(mmu0_v_addr),
+    .mmu0_sel_o(mmu0_sel),
+    .mmu0_data_o(mmu0_wdata),
+
+    .mmu0_load_en_o(mmu0_load_en),
+    .mmu0_store_en_o(mmu0_store_en),
+    .mmu0_fetch_en_o(mmu0_fetch_en),
+    .mmu0_flush_en_o(mmu0_flush_en),
+
+    // IF-stage: instruction fetch
+    .mmu1_data_i(mmu1_rdata),
+    .mmu1_ack_i(mmu1_ack),
+    .mmu1_selected_i(mmu1_selected),
+    .mmu1_v_addr_o(mmu1_v_addr),
+    .mmu1_sel_o(mmu1_sel),
+    .mmu1_data_o(mmu1_wdata),
+
+    .mmu1_load_en_o(mmu1_load_en),
+    .mmu1_store_en_o(mmu1_store_en),
+    .mmu1_fetch_en_o(mmu1_fetch_en),
+    .mmu1_flush_en_o(mmu1_flush_en),
+
+    /* ========== regfile signals ========== */
+    .rf_rdata_a_i(rf_rdata_a),
+    .rf_rdata_b_i(rf_rdata_b),
+    .rf_raddr_a_o(rf_raddr_a),
+    .rf_raddr_b_o(rf_raddr_b),
+    .rf_waddr_o(rf_waddr),
+    .rf_wdata_o(rf_wdata),
+    .rf_wen_o(rf_wen)
+  );
+
+  /* =========== Lab Controller end =========== */
+
+  /* =========== Wishbone MUX begin =========== */
+  // Wishbone MUX (Masters) => bus slaves
+  logic wbs0_cyc_o;
+  logic wbs0_stb_o;
+  logic wbs0_ack_i;
+  logic [31:0] wbs0_adr_o;
+  logic [31:0] wbs0_dat_o;
+  logic [31:0] wbs0_dat_i;
+  logic [3:0] wbs0_sel_o;
+  logic wbs0_we_o;
+
+  logic wbs1_cyc_o;
+  logic wbs1_stb_o;
+  logic wbs1_ack_i;
+  logic [31:0] wbs1_adr_o;
+  logic [31:0] wbs1_dat_o;
+  logic [31:0] wbs1_dat_i;
+  logic [3:0] wbs1_sel_o;
+  logic wbs1_we_o;
+
+  logic wbs2_cyc_o;
+  logic wbs2_stb_o;
+  logic wbs2_ack_i;
+  logic [31:0] wbs2_adr_o;
+  logic [31:0] wbs2_dat_o;
+  logic [31:0] wbs2_dat_i;
+  logic [3:0] wbs2_sel_o;
+  logic wbs2_we_o;
+
+  wb_mux_3 wb_mux (
+      .clk(sys_clk),
+      .rst(sys_rst),
+
+      // Master interface (to Lab5 master)
+      .wbm_adr_i(wbm_adr_o),
+      .wbm_dat_i(wbm_dat_o),
+      .wbm_dat_o(wbm_dat_i),
+      .wbm_we_i (wbm_we_o),
+      .wbm_sel_i(wbm_sel_o),
+      .wbm_stb_i(wbm_stb_o),
+      .wbm_ack_o(wbm_ack_i),
+      .wbm_err_o(),
+      .wbm_rty_o(),
+      .wbm_cyc_i(wbm_cyc_o),
+
+      // Slave interface 0 (to BaseRAM controller)
+      // Address range: 0x8000_0000 ~ 0x803F_FFFF
+      .wbs0_addr    (32'h8000_0000),
+      .wbs0_addr_msk(32'hFFC0_0000),
+
+      .wbs0_adr_o(wbs0_adr_o),
+      .wbs0_dat_i(wbs0_dat_i),
+      .wbs0_dat_o(wbs0_dat_o),
+      .wbs0_we_o (wbs0_we_o),
+      .wbs0_sel_o(wbs0_sel_o),
+      .wbs0_stb_o(wbs0_stb_o),
+      .wbs0_ack_i(wbs0_ack_i),
+      .wbs0_err_i('0),
+      .wbs0_rty_i('0),
+      .wbs0_cyc_o(wbs0_cyc_o),
+
+      // Slave interface 1 (to ExtRAM controller)
+      // Address range: 0x8040_0000 ~ 0x807F_FFFF
+      .wbs1_addr    (32'h8040_0000),
+      .wbs1_addr_msk(32'hFFC0_0000),
+
+      .wbs1_adr_o(wbs1_adr_o),
+      .wbs1_dat_i(wbs1_dat_i),
+      .wbs1_dat_o(wbs1_dat_o),
+      .wbs1_we_o (wbs1_we_o),
+      .wbs1_sel_o(wbs1_sel_o),
+      .wbs1_stb_o(wbs1_stb_o),
+      .wbs1_ack_i(wbs1_ack_i),
+      .wbs1_err_i('0),
+      .wbs1_rty_i('0),
+      .wbs1_cyc_o(wbs1_cyc_o),
+
+      // Slave interface 2 (to UART controller)
+      // Address range: 0x1000_0000 ~ 0x1000_FFFF
+      .wbs2_addr    (32'h1000_0000),
+      .wbs2_addr_msk(32'hFFFF_0000),
+
+      .wbs2_adr_o(wbs2_adr_o),
+      .wbs2_dat_i(wbs2_dat_i),
+      .wbs2_dat_o(wbs2_dat_o),
+      .wbs2_we_o (wbs2_we_o),
+      .wbs2_sel_o(wbs2_sel_o),
+      .wbs2_stb_o(wbs2_stb_o),
+      .wbs2_ack_i(wbs2_ack_i),
+      .wbs2_err_i('0),
+      .wbs2_rty_i('0),
+      .wbs2_cyc_o(wbs2_cyc_o)
+  );
+
+  /* =========== Wishbone MUX end =========== */
+
+  /* =========== Wishbone Slaves begin =========== */
+  sram_controller #(
+      .SRAM_ADDR_WIDTH(20),
+      .SRAM_DATA_WIDTH(32)
+  ) sram_controller_base (
+      .clk_i(sys_clk),
+      .rst_i(sys_rst),
+
+      // Wishbone slave (to MUX)
+      .wb_cyc_i(wbs0_cyc_o),
+      .wb_stb_i(wbs0_stb_o),
+      .wb_ack_o(wbs0_ack_i),
+      .wb_adr_i(wbs0_adr_o),
+      .wb_dat_i(wbs0_dat_o),
+      .wb_dat_o(wbs0_dat_i),
+      .wb_sel_i(wbs0_sel_o),
+      .wb_we_i (wbs0_we_o),
+
+      // To SRAM chip
+      .sram_addr(base_ram_addr),
+      .sram_data(base_ram_data),
+      .sram_ce_n(base_ram_ce_n),
+      .sram_oe_n(base_ram_oe_n),
+      .sram_we_n(base_ram_we_n),
+      .sram_be_n(base_ram_be_n)
+  );
+
+  sram_controller #(
+      .SRAM_ADDR_WIDTH(20),
+      .SRAM_DATA_WIDTH(32)
+  ) sram_controller_ext (
+      .clk_i(sys_clk),
+      .rst_i(sys_rst),
+
+      // Wishbone slave (to MUX)
+      .wb_cyc_i(wbs1_cyc_o),
+      .wb_stb_i(wbs1_stb_o),
+      .wb_ack_o(wbs1_ack_i),
+      .wb_adr_i(wbs1_adr_o),
+      .wb_dat_i(wbs1_dat_o),
+      .wb_dat_o(wbs1_dat_i),
+      .wb_sel_i(wbs1_sel_o),
+      .wb_we_i (wbs1_we_o),
+
+      // To SRAM chip
+      .sram_addr(ext_ram_addr),
+      .sram_data(ext_ram_data),
+      .sram_ce_n(ext_ram_ce_n),
+      .sram_oe_n(ext_ram_oe_n),
+      .sram_we_n(ext_ram_we_n),
+      .sram_be_n(ext_ram_be_n)
+  );
+
+  // 串口控制器模块
+  // NOTE: 如果修改系统时钟频率，也需要修改此处的时钟频率参数
+  uart_controller #(
+      .CLK_FREQ(10_000_000),
+      .BAUD    (115200)
+  ) uart_controller (
+      .clk_i(sys_clk),
+      .rst_i(sys_rst),
+
+      .wb_cyc_i(wbs2_cyc_o),
+      .wb_stb_i(wbs2_stb_o),
+      .wb_ack_o(wbs2_ack_i),
+      .wb_adr_i(wbs2_adr_o),
+      .wb_dat_i(wbs2_dat_o),
+      .wb_dat_o(wbs2_dat_i),
+      .wb_sel_i(wbs2_sel_o),
+      .wb_we_i (wbs2_we_o),
+
+      // to UART pins
+      .uart_txd_o(txd),
+      .uart_rxd_i(rxd)
+  );
+
+  /* =========== Wishbone Slaves end =========== */
 
 endmodule
