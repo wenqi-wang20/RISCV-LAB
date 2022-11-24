@@ -15,6 +15,9 @@ module alu(
   logic [31:0] xor_result;
   logic [31:0] slt_result;
   logic [31:0] sltu_result;
+  logic [31:0] sbclr_result;
+  logic [31:0] min_result;
+  logic [31:0] pack_result;
 
   always_comb begin
     add_result = a + b;
@@ -27,6 +30,9 @@ module alu(
     xor_result = a ^ b;
     slt_result = $signed(a) < $signed(b);
     sltu_result = a < b;
+    sbclr_result = a & ~({31'b0, 1'b1} << (b[4:0]));
+    min_result = $signed(a) < $signed(b) ? a : b;
+    pack_result = {b[15:0], a[15:0]};
   end
 
   assign result = op == ALU_ADD ? add_result
@@ -39,5 +45,8 @@ module alu(
                 : op == ALU_XOR ? xor_result
                 : op == ALU_SLT ? slt_result
                 : op == ALU_SLTU ? sltu_result
+                : op == ALU_SBCLR ? sbclr_result
+                : op == ALU_MIN ? min_result
+                : op == ALU_PACK ? pack_result
                 : 32'b0;
 endmodule
