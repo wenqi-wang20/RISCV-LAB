@@ -105,3 +105,15 @@ typedef struct packed {
   logic [21:0] ppn;  // the physical page number (PPN) of the root page table
 } csr_satp_t;
 // ===== End CSR definitions =====
+
+// ===== Exception instruction type =====
+
+`define EXC_INSTR_T_WIDTH 4
+
+typedef enum logic [EXC_INSTR_T_WIDTH-1:0] {
+  EXC_CSRRW,
+  EXC_CSRRS,
+  EXC_CSRRC,
+  EXC_ECALL,
+  EXC_EBREAK
+} exc_instr_t;

@@ -25,14 +25,18 @@ csr_mtimecmp_t mtimecmp_reg;
 always_comb begin
   wb_dat_o = 64'b0;
   case (wb_adr_i)
-    `CSR_MTIME_MEM_ADDR:
+    `CSR_MTIME_MEM_ADDR: begin
       wb_dat_o = mtime_reg[31:0];
-    `CSR_MTIME_MEM_ADDR+4:
+    end
+    `CSR_MTIME_MEM_ADDR+4: begin
       wb_dat_o = mtime_reg[63:32];
-    `CSR_MTIMECMP_MEM_ADDR:
+    end
+    `CSR_MTIMECMP_MEM_ADDR: begin
       wb_dat_o = mtimecmp_reg[31:0];
-    `CSR_MTIMECMP_MEM_ADDR+4:
+    end
+    `CSR_MTIMECMP_MEM_ADDR+4: begin
       wb_dat_o = mtimecmp_reg[63:32];
+    end
   endcase
 end
 // ===== End read hardwire =====
@@ -57,14 +61,18 @@ always_ff @(posedge clk_i) begin
           if (wb_we_i) begin
             // Write
             case (wb_adr_i)
-              `CSR_MTIME_MEM_ADDR:
+              `CSR_MTIME_MEM_ADDR: begin
                 mtime_reg[31:0] <= wb_dat_i;
-              `CSR_MTIME_MEM_ADDR+4:
+              end
+              `CSR_MTIME_MEM_ADDR+4: begin
                 mtime_reg[63:32] <= wb_dat_i;
-              `CSR_MTIMECMP_MEM_ADDR:
+              end
+              `CSR_MTIMECMP_MEM_ADDR: begin
                 mtimecmp_reg[31:0] <= wb_dat_i;
-              `CSR_MTIMECMP_MEM_ADDR+4:
+              end
+              `CSR_MTIMECMP_MEM_ADDR+4: begin
                 mtimecmp_reg[63:32] <= wb_dat_i;
+              end
               default: ;
             endcase
           end

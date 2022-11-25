@@ -13,7 +13,7 @@ module exe_stage(
   input wire [31:0] exe_imm_i,
   input wire        exe_mem_en_i,
   input wire        exe_mem_wen_i,
-  input wire [ 3:0] exe_alu_op_i,
+  input wire [ALU_OP_T_WIDTH-1:0] exe_alu_op_i,
   input wire        exe_alu_a_sel_i,  // 0: rs1, 1: pc
   input wire        exe_alu_b_sel_i,  // 0: rs2, 1: imm
   input wire [ 4:0] exe_rf_waddr_i,

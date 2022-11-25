@@ -1,10 +1,11 @@
 `include "../headers/alu.vh"
+`include "../headers/csr.vh"
 module instr_decoder(
   input wire  [31:0] instr_i,
   output reg  [31:0] imm_o,
   output reg         mem_en_o,
   output reg         mem_wen_o,
-  output reg  [ 3:0] alu_op_o,
+  output reg  [ALU_OP_T_WIDTH-1:0] alu_op_o,
   output reg         alu_a_sel_o,  // 0: rs1, 1: pc
   output reg         alu_b_sel_o,  // 0: rs2, 1: imm
   output wire [ 4:0] rf_raddr_a_o,
@@ -132,6 +133,21 @@ module instr_decoder(
         endcase
         alu_a_sel_o = 1'b0;  // rs1
         alu_b_sel_o = 1'b0;  // rs2
+      end
+      7'b111_0011: begin // system
+        case (funct3)
+          3'b000: begin  // ecall, ebreak
+            alu_op_o = ALU_ADD;
+            alu_a_sel_o = 1'b0;  // rs1
+            alu_b_sel_o = 1'b1;  // imm
+          end
+          3'b001: begin  // csrrw
+            alu_op_o = ALU_ADD;
+            alu_a_sel_o = 1'b0;  // rs1
+            alu_b_sel_o = 1'b1;  // imm
+          end
+        endcase
+
       end
       default: begin
         alu_op_o = ALU_ADD;

@@ -26,7 +26,6 @@ module mem_stage(
   // control signals
   input wire        stall_i,
   input wire        flush_i,
-  input wire        mem_access_en_i,
 
   // signals to WB(write back) stage
   output reg [31:0] wb_pc_o,
@@ -122,7 +121,7 @@ module mem_stage(
     if (mem_en) begin
       case (mem_state)
         MEM_ACCESS: begin
-          mem_next_state = (!mem_access_en_i) ? MEM_ACCESS : (mmu_ack_i ? MEM_DONE : MEM_ACCESS);
+          mem_next_state = mmu_ack_i ? MEM_DONE : MEM_ACCESS;
         end
         MEM_DONE: begin
           mem_next_state = stall_i ? MEM_DONE : MEM_ACCESS;
@@ -195,8 +194,8 @@ module mem_stage(
     wb_rf_wen_o = rf_wen;
 
     // mmu signals
-    mmu_load_en_o  = mem_en & ~mem_wen & mem_access_en_i & ~mem_state;
-    mmu_store_en_o = mem_en &  mem_wen & mem_access_en_i & ~mem_state;
+    mmu_load_en_o  = mem_en & ~mem_wen & ~mem_state;
+    mmu_store_en_o = mem_en &  mem_wen & ~mem_state;
     mmu_fetch_en_o = 1'b0;
     mmu_flush_en_o = 1'b0;
     mmu_v_addr_o = alu_result;

@@ -11,6 +11,40 @@
 `define TLB_TAG_WIDTH   5
 `define TLB_INDEX_WIDTH 32-12-`TLB_TAG_WIDTH
 
+`define INIT_TLB \
+  tlb[0] <= 47'b0; \
+  tlb[1] <= 47'b0; \
+  tlb[2] <= 47'b0; \
+  tlb[3] <= 47'b0; \
+  tlb[4] <= 47'b0; \
+  tlb[5] <= 47'b0; \
+  tlb[6] <= 47'b0; \
+  tlb[7] <= 47'b0; \
+  tlb[8] <= 47'b0; \
+  tlb[9] <= 47'b0; \
+  tlb[10] <= 47'b0; \
+  tlb[11] <= 47'b0; \
+  tlb[12] <= 47'b0; \
+  tlb[13] <= 47'b0; \
+  tlb[14] <= 47'b0; \
+  tlb[15] <= 47'b0; \
+  tlb[16] <= 47'b0; \
+  tlb[17] <= 47'b0; \
+  tlb[18] <= 47'b0; \
+  tlb[19] <= 47'b0; \
+  tlb[20] <= 47'b0; \
+  tlb[21] <= 47'b0; \
+  tlb[22] <= 47'b0; \
+  tlb[23] <= 47'b0; \
+  tlb[24] <= 47'b0; \
+  tlb[25] <= 47'b0; \
+  tlb[26] <= 47'b0; \
+  tlb[27] <= 47'b0; \
+  tlb[28] <= 47'b0; \
+  tlb[29] <= 47'b0; \
+  tlb[30] <= 47'b0; \
+  tlb[31] <= 47'b0;
+
 module mmu (
   input wire clk_i,
   input wire rst_i,
@@ -35,6 +69,8 @@ module mmu (
   output reg load_pf_o,
   output reg store_pf_o,
   output reg fetch_pf_o,
+
+  output wire invalid_addr_o;
 
   // Wishbone master
   output reg         wb_cyc_o,
@@ -139,6 +175,13 @@ module mmu (
   wire r_en, w_en;
   assign r_en = load_en_i | fetch_en_i;
   assign w_en = store_en_i;
+  wire direct, valid;
+  assign direct = satp.mode == 1'b0 || v_addr < 32'h8000_0000 || v_addr > 32'h807F_FFFF;
+  assign valid = (v_addr >= 32'h8000_0000 && v_addr <= 32'h807F_FFFF) ||
+                 (v_addr >= 32'h1000_0000 && v_addr <= 32'h1000_FFFF) ||
+                 (v_addr >= 32'h2000_0000 && v_addr <= 32'h2000_FFFF);
+
+  assign invalid_addr_o = ~valid;
 
   // Translation related signals
   wire [31:0] a;
@@ -160,23 +203,6 @@ module mmu (
 
   state_t state;
 
-  // TLB initialization
-  genvar i;
-  generate
-    for (i = 0; i < 32; i = i + 1) begin
-      always_ff @(posedge clk_i) begin
-        if (rst_i) begin
-          tlb[i] <= 47'b0;
-        end
-        if (state == STATE_FETCH_PTE && flush_en_i) begin
-          tlb[i] <= 47'b0;
-          ack_o <= 1'b1;
-          state <= STATE_DONE;
-        end
-      end
-    end
-  endgenerate
-
   always_ff @(posedge clk_i) begin
     if (rst_i) begin
       // Internal registers
@@ -189,14 +215,22 @@ module mmu (
       wb_cyc_o <= 1'b0;
       wb_stb_o <= 1'b0;
       wb_we_o <= 1'b0;
+
+      `INIT_TLB
     end else begin
       case (state)
         STATE_FETCH_PTE: begin
-          if (r_en | w_en & ~flush_en_i) begin
+          if (flush_en_i) begin
+            `INIT_TLB
+
+            ack_o <= 1'b1;
+            state <= STATE_DONE;
+
+          else if (r_en | w_en) begin
             if (tlb_hit) begin
               phy_addr <= {tlb_entry.ppn, v_addr.offset};
               state <= STATE_MEM_ACCESS;
-            end else if (satp.mode == 1'b0) begin
+            end else if (direct) begin
               phy_addr <= v_addr;
               state <= STATE_MEM_ACCESS;
             end else begin

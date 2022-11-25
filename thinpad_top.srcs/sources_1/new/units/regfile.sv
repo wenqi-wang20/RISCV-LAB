@@ -16,9 +16,7 @@ module regfile(
 
   always_ff @(posedge clk_i) begin
     if (rst_i) begin
-      for (int i = 0; i < 32; i = i + 1) begin
-        regfile[i] <= 32'h0000;
-      end
+      regfile[0] <= 32'h0000;
     end else if (wen_i && waddr_i != 5'b00000) begin
       regfile[waddr_i] <= wdata_i;
     end

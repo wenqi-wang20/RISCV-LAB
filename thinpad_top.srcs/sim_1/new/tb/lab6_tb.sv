@@ -38,12 +38,11 @@ module lab6_tb;
   wire uart_tsre;  // 数据发送完毕标志
 
   // Windows 需要注意路径分隔符的转义，例如 "D:\\foo\\bar.bin"
-  parameter BASE_RAM_INIT_FILE = "/tmp/lab6.bin"; // BaseRAM 初始化文件，请修改为实际的绝对路径
+  parameter BASE_RAM_INIT_FILE = "C:\\Users\\Trrui\\Desktop\\kernel.bin"; // BaseRAM 初始化文件，请修改为实际的绝对路径
   parameter EXT_RAM_INIT_FILE = "/tmp/eram.bin";  // ExtRAM 初始化文件，请修改为实际的绝对路径
 
   initial begin
     // 在这里可以自定义测试输入序列，例如：
-    dip_sw = 32'h80000000;
     touch_btn = 0;
     reset_btn = 0;
     push_btn = 0;
@@ -54,7 +53,7 @@ module lab6_tb;
     reset_btn = 0;
 
     // 等待一段时间，结束仿真
-    #1000000 $finish;
+    // #1000000 $finish;
   end
 
   // 待测试用户设计

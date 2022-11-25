@@ -26,7 +26,7 @@ module id_stage(
   output reg [31:0] exe_imm_o,
   output reg        exe_mem_en_o,
   output reg        exe_mem_wen_o,
-  output reg [ 3:0] exe_alu_op_o,
+  output reg [ALU_OP_T_WIDTH-1:0] exe_alu_op_o,
   output reg        exe_alu_a_sel_o,  // 0: rs1, 1: pc
   output reg        exe_alu_b_sel_o,  // 0: rs2, 1: imm
   output reg [ 4:0] exe_rf_waddr_o,
@@ -45,7 +45,7 @@ module id_stage(
   logic [31:0] imm;
   logic        mem_en;
   logic        mem_wen;
-  logic [ 3:0] alu_op;
+  logic [ALU_OP_T_WIDTH-1:0] alu_op;
   logic        alu_a_sel;
   logic        alu_b_sel;
   logic [ 4:0] rf_raddr_a;

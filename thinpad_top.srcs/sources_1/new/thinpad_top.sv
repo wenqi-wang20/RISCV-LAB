@@ -281,13 +281,13 @@ module thinpad_top (
   logic        mmu_load_pf;
   logic        mmu_store_pf;
   logic        mmu_fetch_pf;
+  logic        mmu_invalid_addr;
 
   logic [31:0] mmu0_v_addr;
   logic [31:0] mmu0_wdata;
   logic [31:0] mmu0_rdata;
   logic [ 3:0] mmu0_sel;
   logic        mmu0_ack;
-  logic        mmu0_selected;
   logic        mmu0_load_en;
   logic        mmu0_store_en;
   logic        mmu0_fetch_en;
@@ -295,13 +295,13 @@ module thinpad_top (
   logic        mmu0_load_pf;
   logic        mmu0_store_pf;
   logic        mmu0_fetch_pf;
+  logic        mmu0_invalid_addr;
 
   logic [31:0] mmu1_v_addr;
   logic [31:0] mmu1_wdata;
   logic [31:0] mmu1_rdata;
   logic [ 3:0] mmu1_sel;
   logic        mmu1_ack;
-  logic        mmu1_selected;
   logic        mmu1_load_en;
   logic        mmu1_store_en;
   logic        mmu1_fetch_en;
@@ -309,6 +309,7 @@ module thinpad_top (
   logic        mmu1_load_pf;
   logic        mmu1_store_pf;
   logic        mmu1_fetch_pf;
+  logic        mmu0_invalid_addr;
 
   logic [ 4:0] rf_raddr_a;
   logic [ 4:0] rf_raddr_b;
@@ -343,6 +344,8 @@ module thinpad_top (
     .store_pf_o(mmu_store_pf),
     .fetch_pf_o(mmu_fetch_pf),
 
+    .invalid_addr_o(mmu_invalid_addr),
+
     // Wishbone master
     .wb_cyc_o(wbm_cyc_o),
     .wb_stb_o(wbm_stb_o),
@@ -368,7 +371,6 @@ module thinpad_top (
     .mmu0_data_o(mmu0_rdata),
     .mmu0_sel_i(mmu0_sel),
     .mmu0_ack_o(mmu0_ack),
-    .mmu0_selected_o(mmu0_selected),
 
     // Enabling signals
     .mmu0_load_en_i(mmu0_load_en),  // Load
@@ -381,6 +383,8 @@ module thinpad_top (
     .mmu0_store_pf_o(mmu0_store_pf),
     .mmu0_fetch_pf_o(mmu0_fetch_pf),
 
+    .mmu0_invalid_addr_o(mmu0_invalid_addr),
+
     /*
      * MMU master 1 input
      */
@@ -391,7 +395,6 @@ module thinpad_top (
     .mmu1_data_o(mmu1_rdata),
     .mmu1_sel_i(mmu1_sel),
     .mmu1_ack_o(mmu1_ack),
-    .mmu1_selected_o(mmu1_selected),
 
     // Enabling signals
     .mmu1_load_en_i(mmu1_load_en),  // Load
@@ -403,6 +406,8 @@ module thinpad_top (
     .mmu1_load_pf_o(mmu1_load_pf),
     .mmu1_store_pf_o(mmu1_store_pf),
     .mmu1_fetch_pf_o(mmu1_fetch_pf),
+
+    .mmu1_invalid_addr_o(mmu1_invalid_addr),
 
     /*
      * MMU slave output
@@ -440,7 +445,7 @@ module thinpad_top (
     .wen_i(rf_wen)
   );
 
-  pipeline_controller u_pipeline_controller(
+  pipeline u_pipeline(
     .clk_i(sys_clk),
     .rst_i(sys_rst),
 
@@ -451,7 +456,6 @@ module thinpad_top (
     // MEM-stage: load/store data
     .mmu0_data_i(mmu0_rdata),
     .mmu0_ack_i(mmu0_ack),
-    .mmu0_selected_i(mmu0_selected),
     .mmu0_v_addr_o(mmu0_v_addr),
     .mmu0_sel_o(mmu0_sel),
     .mmu0_data_o(mmu0_wdata),
@@ -464,7 +468,6 @@ module thinpad_top (
     // IF-stage: instruction fetch
     .mmu1_data_i(mmu1_rdata),
     .mmu1_ack_i(mmu1_ack),
-    .mmu1_selected_i(mmu1_selected),
     .mmu1_v_addr_o(mmu1_v_addr),
     .mmu1_sel_o(mmu1_sel),
     .mmu1_data_o(mmu1_wdata),
@@ -515,7 +518,16 @@ module thinpad_top (
   logic [3:0] wbs2_sel_o;
   logic wbs2_we_o;
 
-  wb_mux_3 wb_mux (
+  logic wbs3_cyc_o;
+  logic wbs3_stb_o;
+  logic wbs3_ack_i;
+  logic [31:0] wbs3_adr_o;
+  logic [31:0] wbs3_dat_o;
+  logic [31:0] wbs3_dat_i;
+  logic [3:0] wbs3_sel_o;
+  logic wbs3_we_o;
+
+  wb_mux_4 wb_mux (
       .clk(sys_clk),
       .rst(sys_rst),
 
@@ -578,6 +590,21 @@ module thinpad_top (
       .wbs2_err_i('0),
       .wbs2_rty_i('0),
       .wbs2_cyc_o(wbs2_cyc_o)
+
+      // Slave interface 3 (to Memory-mapped CSRs)
+      .wbs3_addr    (32'h0200_0000),
+      .wbs3_addr_msk(32'h03ff_0000),
+
+      .wbs3_adr_o(wbs3_adr_o),
+      .wbs3_dat_i(wbs3_dat_i),
+      .wbs3_dat_o(wbs3_dat_o),
+      .wbs3_we_o (wbs3_we_o),
+      .wbs3_sel_o(wbs3_sel_o),
+      .wbs3_stb_o(wbs3_stb_o),
+      .wbs3_ack_i(wbs3_ack_i),
+      .wbs3_err_i('0),
+      .wbs3_rty_i('0),
+      .wbs3_cyc_o(wbs3_cyc_o)
   );
 
   /* =========== Wishbone MUX end =========== */
@@ -656,6 +683,21 @@ module thinpad_top (
       // to UART pins
       .uart_txd_o(txd),
       .uart_rxd_i(rxd)
+  );
+
+  // Memory-mapped CSRs
+  csr_mtime csr (
+      .clk_i(sys_clk),
+      .rst_i(sys_rst),
+
+      .wb_cyc_i(wbs3_cyc_o),
+      .wb_stb_i(wbs3_stb_o),
+      .wb_ack_o(wbs3_ack_i),
+      .wb_adr_i(wbs3_adr_o),
+      .wb_dat_i(wbs3_dat_o),
+      .wb_dat_o(wbs3_dat_i),
+      .wb_sel_i(wbs3_sel_o),
+      .wb_we_i (wbs3_we_o),
   );
 
   /* =========== Wishbone Slaves end =========== */

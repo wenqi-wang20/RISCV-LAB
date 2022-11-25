@@ -6,17 +6,21 @@ module if_stage(
   input  wire [31:0] mmu_data_i,
   input  wire        mmu_ack_i,
   output reg  [31:0] mmu_v_addr_o,
+  output reg  [31:0] mmu_satp_o,
   output reg  [ 3:0] mmu_sel_o,
   output reg  [31:0] mmu_data_o,
   output reg         mmu_load_en_o,  // Load
   output reg         mmu_store_en_o, // Store
   output reg         mmu_fetch_en_o, // Fetch instruction
   output reg         mmu_flush_en_o, // Flush the TLB
+  input  wire        load_pf_i,
+  input  wire        store_pf_i,
+  input  wire        fetch_pf_i,
+  input  wire        invalid_addr_i,
 
   // stall signals and flush signals
   input wire        stall_i,
   input wire        flush_i,
-  input wire        mem_access_en_i,
   input wire        pc_sel_i,
   input wire [31:0] pc_i,
 
@@ -38,6 +42,7 @@ module if_stage(
   logic [31:0] pc;
   logic [31:0] pc_next;
   logic [31:0] instr;
+  logic [31:0] exception_cause;
 
   always_ff @(posedge clk_i) begin
     if (rst_i) begin 
@@ -45,7 +50,9 @@ module if_stage(
       instr <= 32'h0000_0000;
     end else begin
       if_state <= if_next_state;
-      if (mmu_ack_i) begin
+      if (invalid_addr_i) begin
+        instr <= 32'h0000_0013  // nop for exception
+      end else if (mmu_ack_i) begin
         instr <= mmu_data_i;
       end
     end
@@ -54,7 +61,7 @@ module if_stage(
   always_comb begin
     case (if_state)
       IF_ACCESS: begin
-        if_next_state = (!mem_access_en_i) ? IF_ACCESS : (mmu_ack_i ? IF_DONE : IF_ACCESS);
+        if_next_state = (mmu_ack_i || invalid_addr_i) ? IF_DONE : IF_ACCESS;
       end
       IF_DONE: begin
         if_next_state = stall_i ? IF_DONE : IF_ACCESS;
@@ -86,7 +93,7 @@ module if_stage(
     mmu_data_o = 32'h0000_0000;
     mmu_load_en_o = 1'b0;
     mmu_store_en_o = 1'b0;
-    mmu_fetch_en_o = mem_access_en_i & ~if_state;
+    mmu_fetch_en_o = ~if_state & ~invalid_addr_i;
     mmu_flush_en_o = 1'b0;
 
     // if busy signal
