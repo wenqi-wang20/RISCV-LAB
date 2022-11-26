@@ -99,10 +99,26 @@ module instr_decoder(
               default: alu_op_o = ALU_ADD;
             endcase
           end
-          3'b001: alu_op_o = ALU_SLL;  // sll
-          3'b010: alu_op_o = ALU_SLT;  // slt
-          3'b011: alu_op_o = ALU_SLTU; // sltu
-          3'b100: alu_op_o = ALU_XOR;  // xor
+          3'b001: begin
+            case (funct7)
+              7'b000_0000: alu_op_o = ALU_SLL;  // sll
+              7'b010_0100: alu_op_o = ALU_SBCLR;  // sbclr
+              default: alu_op_o = ALU_ADD;
+            endcase
+          end
+          3'b010: begin
+            alu_op_o = ALU_SLT;  // slt
+          end
+          3'b011: begin
+            alu_op_o = ALU_SLTU; // sltu
+          end
+          3'b100: begin
+            case (funct7)
+              7'b000_0000: alu_op_o = ALU_XOR;  // xor
+              7'b000_0101: alu_op_o = ALU_MIN;  // min
+              7'b000_0100: alu_op_o = ALU_PACK;  // pack
+            endcase
+          end
           3'b101: begin
             case (funct7)
               7'b000_0000: alu_op_o = ALU_SRL;  // srl
