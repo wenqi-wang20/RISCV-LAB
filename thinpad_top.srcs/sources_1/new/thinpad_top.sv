@@ -1,4 +1,4 @@
-`default_nettype none
+ `default_nettype none
 
 module thinpad_top (
     input wire clk_50M,     // 50MHz 时钟输入
@@ -663,17 +663,28 @@ module thinpad_top (
   /* =========== VGA begin =========== */
   // 图像输出演示，分辨率 800x600@75Hz，像素时钟为 50MHz
   logic [11:0] hdata;
-  assign video_red   = hdata < 266 ? 3'b111 : 0;  // 红色竖条
-  assign video_green = hdata < 532 && hdata >= 266 ? 3'b111 : 0;  // 绿色竖条
-  assign video_blue  = hdata >= 532 ? 2'b11 : 0;  // 蓝色竖条
+  logic [11:0] vdata;
+  logic [7:0] pixel;
+
+  assign video_red   = pixel[7:5];  // 红色竖条
+  assign video_green = pixel[4:2];  // 绿色竖条
+  assign video_blue  = pixel[1:0];  // 蓝色竖条
   assign video_clk   = clk_50M;
+
   vga #(12, 800, 856, 976, 1040, 600, 637, 643, 666, 1, 1) vga800x600at75 (
       .clk        (clk_50M),
-      .hdata      (hdata),        // 横坐标
-      .vdata      (),             // 纵坐标
+      .hdata      (hdata),        // 横向周期计数
+      .vdata      (vdata),             // 纵向周期计数
       .hsync      (video_hsync),
       .vsync      (video_vsync),
       .data_enable(video_de)
+  );
+
+  vga_pic #(12, 800, 600) pic (
+      .vga_clk    (clk_50M),
+      .hdata      (hdata),
+      .vdata      (vdata),
+      .pixel      (pixel)
   );
   /* =========== VGA end =========== */
   
