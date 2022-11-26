@@ -1,17 +1,20 @@
 `include "../headers/alu.vh"
 `include "../headers/csr.vh"
+`include "../headers/exc.vh"
 module instr_decoder(
   input wire  [31:0] instr_i,
   output reg  [31:0] imm_o,
   output reg         mem_en_o,
   output reg         mem_wen_o,
-  output reg  [ALU_OP_T_WIDTH-1:0] alu_op_o,
+  output reg  [`ALU_OP_T_WIDTH-1:0] alu_op_o,
   output reg         alu_a_sel_o,  // 0: rs1, 1: pc
   output reg         alu_b_sel_o,  // 0: rs2, 1: imm
   output wire [ 4:0] rf_raddr_a_o,
   output wire [ 4:0] rf_raddr_b_o,
   output reg  [ 4:0] rf_waddr_o,
-  output reg         rf_wen_o
+  output reg         rf_wen_o,
+  output reg         instr_legal_o,
+  output reg  [`SYS_INSTR_T_WIDTH-1:0] sys_instr_o
 );
   logic [6:0] opcode;
   logic [2:0] funct3;
@@ -32,61 +35,124 @@ module instr_decoder(
     rs2 = instr_i[24:20];
     rd  = instr_i[11:7];
 
-    // alu operation
+    // default values
+    sys_instr_o = SYS_INSTR_NOP;
+
+    // alu operation, instruction legality and system instruction type
     case (opcode)
       7'b011_0111: begin  // lui
         alu_op_o = ALU_ADD;
         rs1 = 5'b00000;
         alu_a_sel_o = 1'b0;  // rs1 = x0
         alu_b_sel_o = 1'b1;  // imm
+        instr_legal_o = 1'b1;
       end
       7'b001_0111: begin  // auipc
         alu_op_o = ALU_ADD;
         alu_a_sel_o = 1'b1;  // pc
         alu_b_sel_o = 1'b1;  // imm
+        instr_legal_o = 1'b1;
       end
       7'b110_1111: begin  // jal
         alu_op_o = ALU_ADD;
         alu_a_sel_o = 1'b1;  // pc
         alu_b_sel_o = 1'b1;  // imm
+        instr_legal_o = 1'b1;
       end
       7'b110_0111: begin  // jalr
         alu_op_o = ALU_ADD;
         alu_a_sel_o = 1'b0;  // rs1
         alu_b_sel_o = 1'b1;  // imm
+        instr_legal_o = (funct3 == 3'b000) ? 1'b1 : 1'b0;
       end
       7'b110_0011: begin // branch
         alu_op_o = ALU_ADD;
         alu_a_sel_o = 1'b1;  // pc
         alu_b_sel_o = 1'b1;  // imm
+        case (funct3)
+          3'b000: instr_legal_o = 1'b1;  // beq
+          3'b001: instr_legal_o = 1'b1;  // bne
+          3'b100: instr_legal_o = 1'b1;  // blt
+          3'b101: instr_legal_o = 1'b1;  // bge
+          3'b110: instr_legal_o = 1'b1;  // bltu
+          3'b111: instr_legal_o = 1'b1;  // bgeu
+          default: instr_legal_o = 1'b0;
+        endcase
       end
       7'b000_0011: begin  // load
         alu_op_o = ALU_ADD;
         alu_a_sel_o = 1'b0;  // rs1
         alu_b_sel_o = 1'b1;  // imm
+        case (funct3)
+          3'b000: instr_legal_o = 1'b1;  // lb
+          3'b001: instr_legal_o = 1'b1;  // lh
+          3'b010: instr_legal_o = 1'b1;  // lw
+          3'b100: instr_legal_o = 1'b1;  // lbu
+          3'b101: instr_legal_o = 1'b1;  // lhu
+          default: instr_legal_o = 1'b0;
+        endcase
       end
       7'b010_0011: begin  // store
         alu_op_o = ALU_ADD;
         alu_a_sel_o = 1'b0;  // rs1
         alu_b_sel_o = 1'b1;  // imm
+        case (funct3)
+          3'b000: instr_legal_o = 1'b1;  // sb
+          3'b001: instr_legal_o = 1'b1;  // sh
+          3'b010: instr_legal_o = 1'b1;  // sw
+          default: instr_legal_o = 1'b0;
+        endcase
       end
       7'b001_0011: begin  // immediate
         case (funct3)
-          3'b000: alu_op_o = ALU_ADD;  // addi
-          3'b010: alu_op_o = ALU_SLT;  // slti
-          3'b011: alu_op_o = ALU_SLTU; // sltiu
-          3'b100: alu_op_o = ALU_XOR;  // xori
-          3'b110: alu_op_o = ALU_OR;   // ori
-          3'b111: alu_op_o = ALU_AND;  // andi
-          3'b001: alu_op_o = ALU_SLL;  // slli
+          3'b000: begin  // addi
+            alu_op_o = ALU_ADD;
+            instr_legal_o = 1'b1;
+          end
+          3'b010: begin  // slti
+            alu_op_o = ALU_SLT;
+            instr_legal_o = 1'b1;
+          end
+          3'b011: begin  // sltiu
+            alu_op_o = ALU_SLTU;
+            instr_legal_o = 1'b1;
+          end
+          3'b100: begin  // xori
+            alu_op_o = ALU_XOR;
+            instr_legal_o = 1'b1;
+          end
+          3'b110: begin  // ori
+            alu_op_o = ALU_OR;
+            instr_legal_o = 1'b1;
+          end
+          3'b111: begin  // andi
+            alu_op_o = ALU_AND;
+            instr_legal_o = 1'b1;
+          end
+          3'b001: begin  // slli
+            alu_op_o = ALU_SLL;
+            instr_legal_o = (funct7 == 7'b000_0000) ? 1'b1 : 1'b0;
+          end
           3'b101: begin
             case (funct7)
-              7'b000_0000: alu_op_o = ALU_SRL;  // srli
-              7'b010_0000: alu_op_o = ALU_SRA;  // srai
-              default: alu_op_o = ALU_ADD;
+              7'b000_0000: begin  // srli
+                alu_op_o = ALU_SRL;
+                instr_legal_o = 1'b1;
+              end
+              7'b010_0000: begin  // srai
+                alu_op_o = ALU_SRA;
+                instr_legal_o = 1'b1;
+              end
+              default: begin
+                alu_op_o = ALU_ADD;
+                instr_legal_o = 1'b0;
+              end
             endcase
           end
-          default: alu_op_o = ALU_ADD;
+          default: begin
+            alu_op_o = ALU_ADD;
+            instr_legal_o = 1'b0;
+          end
         endcase
         alu_a_sel_o = 1'b0;  // rs1
         alu_b_sel_o = 1'b1;  // imm
@@ -95,62 +161,127 @@ module instr_decoder(
         case (funct3)
           3'b000: begin
             case (funct7)
-              7'b000_0000: alu_op_o = ALU_ADD;  // add
-              7'b010_0000: alu_op_o = ALU_SUB;  // sub
-              default: alu_op_o = ALU_ADD;
+              7'b000_0000: begin  // add
+                alu_op_o = ALU_ADD;
+                instr_legal_o = 1'b1;
+              end
+              7'b010_0000: begin  // add
+                alu_op_o = ALU_SUB;
+                instr_legal_o = 1'b1;
+              end
+              default: begin
+                alu_op_o = ALU_ADD;
+                instr_legal_o = 1'b0;
+              end
             endcase
           end
           3'b001: begin
             case (funct7)
-              7'b000_0000: alu_op_o = ALU_SLL;  // sll
-              7'b010_0100: alu_op_o = ALU_SBCLR;  // sbclr
-              default: alu_op_o = ALU_ADD;
+              7'b000_0000: begin  // sll
+                alu_op_o = ALU_SLL;
+                instr_legal_o = 1'b1;
+              end
+              7'b010_0100: begin // sbclr
+                alu_op_o = ALU_SBCLR;
+                instr_legal_o = 1'b1;
+              end
+              default: begin
+                alu_op_o = ALU_ADD;
+                instr_legal_o = 1'b0;
+              end
             endcase
           end
           3'b010: begin
             alu_op_o = ALU_SLT;  // slt
+            instr_legal_o = (funct7 == 7'b000_0000) ? 1'b1 : 1'b0;
           end
           3'b011: begin
             alu_op_o = ALU_SLTU; // sltu
+            instr_legal_o = (funct7 == 7'b000_0000) ? 1'b1 : 1'b0;
           end
           3'b100: begin
             case (funct7)
-              7'b000_0000: alu_op_o = ALU_XOR;  // xor
-              7'b000_0101: alu_op_o = ALU_MIN;  // min
-              7'b000_0100: alu_op_o = ALU_PACK;  // pack
+              7'b000_0000: begin  // xor
+                alu_op_o = ALU_XOR;
+                instr_legal_o = 1'b1;
+              end
+              7'b000_0101: begin  // min
+                alu_op_o = ALU_MIN;
+                instr_legal_o = 1'b1;
+              end
+              7'b000_0100: begin  // pack
+                alu_op_o = ALU_PACK;
+                instr_legal_o = 1'b1;
+              end
+              default: begin
+                alu_op_o = ALU_ADD;
+                instr_legal_o = 1'b0;
+              end
             endcase
           end
           3'b101: begin
             case (funct7)
-              7'b000_0000: alu_op_o = ALU_SRL;  // srl
-              7'b010_0000: alu_op_o = ALU_SRA;  // sra
-              default: alu_op_o = ALU_ADD;
+              7'b000_0000: begin  // srl
+                alu_op_o = ALU_SRL;
+                instr_legal_o = 1'b1;
+              end
+              7'b010_0000: begin  // sra
+                alu_op_o = ALU_SRA;
+                instr_legal_o = 1'b1;
+              end
+              default: begin
+                alu_op_o = ALU_ADD;
+                instr_legal_o = 1'b0;
+              end
             endcase
           end
-          3'b110: alu_op_o = ALU_OR;   // or
-          3'b111: alu_op_o = ALU_AND;  // and
-          default: alu_op_o = ALU_ADD;
+          3'b110: begin  // or
+            alu_op_o = ALU_OR;
+            instr_legal_o = (funct7 == 7'b000_0000) ? 1'b1 : 1'b0;
+          end
+          3'b111: begin  // and
+            alu_op_o = ALU_AND;
+            instr_legal_o = (funct7 == 7'b000_0000) ? 1'b1 : 1'b0;
+          end
+          default: begin
+            alu_op_o = ALU_ADD;
+            instr_legal_o = 1'b0;
+          end
         endcase
         alu_a_sel_o = 1'b0;  // rs1
         alu_b_sel_o = 1'b0;  // rs2
       end
+      // TODO: add support for csr illegal instruction exception check
       7'b111_0011: begin // system
         case (funct3)
           3'b000: begin  // ecall, ebreak
-            alu_op_o = ALU_ADD;
-            alu_a_sel_o = 1'b0;  // rs1
-            alu_b_sel_o = 1'b1;  // imm
+            instr_legal_o = (funct7 == 7'b000_0000) && (rd == 5'b0_0000) && (rs1 == 5'b0_0000) && (rs2 == 5'b0_0000 || rs2 == 5'b0_0001) ? 1'b1 : 1'b0;
+            sys_instr_o = (rs2 == 5'b0_0000) ? SYS_INSTR_ECALL : SYS_INSTR_EBREAK;
           end
           3'b001: begin  // csrrw
-            alu_op_o = ALU_ADD;
-            alu_a_sel_o = 1'b0;  // rs1
-            alu_b_sel_o = 1'b1;  // imm
+            instr_legal_o = 1'b1;
+            sys_instr_o = SYS_INSTR_CSRRW;
+          end
+          3'b010: begin  // csrrs
+            instr_legal_o = 1'b1;
+            sys_instr_o = SYS_INSTR_CSRRS;
+          end
+          3'b011: begin  // csrrc
+            instr_legal_o = 1'b1;
+            sys_instr_o = SYS_INSTR_CSRRC;
+          end
+          default: begin
+            instr_legal_o = 1'b0;
+            sys_instr_o = SYS_INSTR_NOP;
           end
         endcase
-
+        alu_op_o = ALU_ADD;
+        alu_a_sel_o = 1'b0;  // rs1
+        alu_b_sel_o = 1'b0;  // rs2
       end
       default: begin
         alu_op_o = ALU_ADD;
+        instr_legal_o = 1'b0;
         alu_a_sel_o = 1'b0;  // rs1
         alu_b_sel_o = 1'b0;  // rs2
       end
@@ -222,6 +353,25 @@ module instr_decoder(
       end
       7'b011_0011: begin  // register
         rf_wen_o = (rd != 5'b00000) ? 1'b1 : 1'b0;
+      end
+      7'b111_0011: begin // system
+        case (funct3)
+          3'b000: begin  // ecall, ebreak
+            rf_wen_o = 1'b0;
+          end
+          3'b001: begin  // csrrw
+            rf_wen_o = (rd != 5'b00000) ? 1'b1 : 1'b0;
+          end
+          3'b010: begin  // csrrs
+            rf_wen_o = (rd != 5'b00000) ? 1'b1 : 1'b0;
+          end
+          3'b011: begin  // csrrc
+            rf_wen_o = (rd != 5'b00000) ? 1'b1 : 1'b0;
+          end
+          default: begin
+            rf_wen_o = 1'b0;
+          end
+        endcase
       end
       default: begin
         rf_wen_o = 1'b0;

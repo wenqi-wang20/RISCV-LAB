@@ -1,3 +1,4 @@
+`include "../../headers/alu.vh"
 module pipeline(
   input wire clk_i,
   input wire rst_i,
@@ -58,7 +59,7 @@ module pipeline(
   logic [31:0] id_exe_imm;
   logic        id_exe_mem_en;
   logic        id_exe_mem_wen;
-  logic [ 3:0] id_exe_alu_op;
+  logic [ALU_OP_T_WIDTH-1:0] id_exe_alu_op;
   logic        id_exe_alu_a_sel;
   logic        id_exe_alu_b_sel;
   logic [ 4:0] id_exe_rf_waddr;
@@ -87,10 +88,15 @@ module pipeline(
   logic [ 4:0] mem_wb_rf_waddr;
   logic        mem_wb_rf_wen;
 
+  // Exception Unit signals
+  logic [31:0] exc_if_pc;
+  logic        exc_if_pc_sel;
+
   // pipeline controller signals
   logic        if_busy;
 
-  logic        exe_pc_sel;  // 0: pc+4, 1: exe_pc
+  logic [31:0] if_pc;
+  logic        if_pc_sel;
 
   logic [ 4:0] id_rf_raddr_a;
   logic [ 4:0] id_rf_raddr_b;
@@ -143,8 +149,8 @@ module pipeline(
     // stall signals and flush signals
     .stall_i(if_stall),
     .flush_i(if_flush),
-    .pc_sel_i(exe_if_pc_sel),
-    .pc_i(exe_if_pc),
+    .pc_sel_i(if_pc_sel),
+    .pc_i(if_pc),
 
     // signals to ID stage
     .id_pc_o(if_id_pc),
@@ -328,9 +334,16 @@ module pipeline(
 
     // signals from IF stage
     .if_busy_i(if_busy),
+    .if_pc_o(if_pc),
+    .if_pc_sel_o(if_pc_sel),
 
     // pc signals from EXE stage
     .exe_pc_sel_i(exe_if_pc_sel),  // 0: pc+4, 1: exe_pc
+    .exe_pc_i(exe_if_pc),
+
+    // pc signals from exception unit
+    .exc_pc_sel_i(exc_if_pc_sel),  // 0: pc+4, 1: exc_pc
+    .exc_pc_i(exc_if_pc),
 
     // signals from ID stage
     .id_rf_raddr_a_i(id_rf_raddr_a),

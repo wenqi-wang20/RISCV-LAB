@@ -1,3 +1,4 @@
+`include "../../headers/exc.vh"
 module if_stage(
   input wire clk_i,
   input wire rst_i,
@@ -27,6 +28,7 @@ module if_stage(
   // signals to ID stage
   output reg [31:0] id_pc_o,
   output reg [31:0] id_instr_o,
+  output reg [`EXC_SIG_T_WIDTH-1:0] id_exc_sig_o,
 
   // signals to hazard handler
   output reg if_busy_o
@@ -42,18 +44,30 @@ module if_stage(
   logic [31:0] pc;
   logic [31:0] pc_next;
   logic [31:0] instr;
-  logic [31:0] exception_cause;
+  exc_sig_t exc_sig;
 
   always_ff @(posedge clk_i) begin
     if (rst_i) begin 
       if_state <= IF_ACCESS;
       instr <= 32'h0000_0000;
+      exc_sig <= `EXC_SIG_NULL;
     end else begin
       if_state <= if_next_state;
       if (invalid_addr_i) begin
         instr <= 32'h0000_0013  // nop for exception
-      end else if (mmu_ack_i) begin
+        exc_sig.exc_occur <= 1'b1;
+        exc_sig.cur_pc <= pc;
+        exc_sig.sync_exc_code <= `EXC_INSTRUCTION_ADDRESS_MISALIGNED;
+        exc_sig.mtval <= pc;
+      end else if (fetch_pf_i) begin
+        instr <= 32'h0000_0013  // nop for exception
+        exc_sig.exc_occur <= 1'b1;
+        exc_sig.cur_pc <= pc;
+        exc_sig.sync_exc_code <= `EXC_INSTRUCTION_ACCESS_FAULT;
+        exc_sig.mtval <= pc;
+      end else begin
         instr <= mmu_data_i;
+        exc_sig <= `EXC_SIG_NULL;
       end
     end
   end
@@ -86,6 +100,7 @@ module if_stage(
     // signals to ID stage
     id_pc_o = pc;
     id_instr_o = instr;
+    id_exc_sig_o = exc_sig;
 
     // mmu signals
     mmu_v_addr_o = pc;

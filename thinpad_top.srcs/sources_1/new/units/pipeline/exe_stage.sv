@@ -1,4 +1,5 @@
 `include "../../headers/alu.vh"
+`include "../../headers/exc.vh"
 module exe_stage(
   input wire clk_i,
   input wire rst_i,
@@ -13,19 +14,21 @@ module exe_stage(
   input wire [31:0] exe_imm_i,
   input wire        exe_mem_en_i,
   input wire        exe_mem_wen_i,
-  input wire [ALU_OP_T_WIDTH-1:0] exe_alu_op_i,
+  input wire [`ALU_OP_T_WIDTH-1:0] exe_alu_op_i,
   input wire        exe_alu_a_sel_i,  // 0: rs1, 1: pc
   input wire        exe_alu_b_sel_i,  // 0: rs2, 1: imm
   input wire [ 4:0] exe_rf_waddr_i,
   input wire        exe_rf_wen_i,
+  input wire [`SYS_INSTR_T_WIDTH-1:0] exe_sys_instr_i,
+  input wire [  `EXC_SIG_T_WIDTH-1:0] exe_exc_sig_i,
 
   // stall signals and flush signals
   input  wire       stall_i,
   input  wire       flush_i,
 
-  // signals to IF stage
+  // signals to pipeline controller (pc mux)
   output reg [31:0] if_pc_o,
-  output reg        if_pc_sel_o,      // 0: pc+4, 1: exe_pc
+  output reg        if_pc_sel_o,  // 0: pc+4, 1: exe_pc
 
   // signals to MEM stage
   output reg [31:0] mem_pc_o,
@@ -36,6 +39,9 @@ module exe_stage(
   output reg [31:0] mem_alu_result_o,
   output reg [ 4:0] mem_rf_waddr_o,
   output reg        mem_rf_wen_o,
+  output reg [31:0] mem_csr_rf_wdata_o,      //  csr data to be written to regfile
+  output reg        mem_csr_rf_wdata_sel_o,  //  0: alu_result, 1: csr_rf_wdata
+  output reg [EXC_SIG_T_WIDTH-1:0] mem_exc_sig_o,
 
   // signals from forward unit
   input wire [31:0] exe_forward_alu_a_i,
@@ -48,7 +54,14 @@ module exe_stage(
   output reg [ 4:0] exe_rf_raddr_b_o,
   output reg        exe_mem_en_o,
   output reg        exe_mem_wen_o,
-  output reg [ 4:0] exe_rf_waddr_o
+  output reg [ 4:0] exe_rf_waddr_o,
+
+  // signals to exception unit (CSR read/write)
+  output reg [11:0] exc_csr_raddr_o,
+  input wire [31:0] exc_csr_rdata_i,
+  output reg [11:0] exc_csr_waddr_o,
+  output reg [31:0] exc_csr_wdata_o,
+  output reg        exc_csr_wen_o
 );
 
   // pipeline registers
@@ -67,17 +80,23 @@ module exe_stage(
   logic [31:0] alu_result;
   logic [ 4:0] rf_waddr;
   logic        rf_wen;
+  sys_instr_t  sys_instr;
+  exc_sig_t    exc_sig;
 
   // alu signals
   logic [31:0] alu_a;
   logic [31:0] alu_b;
 
-  // instr signals
+  // internal signals
   logic [ 6:0] opcode;
   logic [ 2:0] funct3;
   logic [ 6:0] funct7;
   logic [31:0] rf_rdata_a_exact;
   logic [31:0] rf_rdata_b_exact;
+  logic [11:0] csr_addr;
+  exc_sig_t    exc_sig_gen;
+
+  assign csr_addr = instr[31:20];
 
   alu u_alu(
     .a(alu_a),
@@ -102,6 +121,8 @@ module exe_stage(
       mem_wen <= 1'b0;
       rf_waddr <= 5'h0;
       rf_wen <= 1'b0;
+      sys_instr <= SYS_INSTR_NOP;
+      exc_sig <= EXC_SIG_NULL;
     end else if (stall_i) begin
       // do nothing
     end else if (flush_i) begin
@@ -119,6 +140,8 @@ module exe_stage(
       mem_wen <= 1'b0;
       rf_waddr <= 5'h0;
       rf_wen <= 1'b0;
+      sys_instr <= SYS_INSTR_NOP;
+      exc_sig <= EXC_SIG_NULL;
     end else begin
       pc <= exe_pc_i;
       instr <= exe_instr_i;
@@ -134,6 +157,8 @@ module exe_stage(
       mem_wen <= exe_mem_wen_i;
       rf_waddr <= exe_rf_waddr_i;
       rf_wen <= exe_rf_wen_i;
+      sys_instr <= exe_sys_instr_i;
+      exc_sig <= exe_exc_sig_i;
     end
   end
 
@@ -217,5 +242,32 @@ module exe_stage(
     exe_mem_en_o = mem_en;
     exe_mem_wen_o = mem_wen;
     exe_rf_waddr_o = rf_waddr;
+
+    // CSR read/write
+    exc_csr_raddr_o = csr_addr;
+    exc_csr_waddr_o = csr_addr;
+    mem_csr_rf_wdata_o = exc_csr_rdata_i;
+    case (sys_instr)
+      SYS_INSTR_CSRRW: begin
+        mem_csr_rf_wdata_sel_o = 1'b1;
+        exc_csr_wdata_o = rf_rdata_a_exact;
+        exc_csr_wen_o = 1'b1;
+      end
+      SYS_INSTR_CSRRS: begin
+        mem_csr_rf_wdata_sel_o = 1'b1;
+        exc_csr_wdata_o = mem_csr_rf_wdata_o | rf_rdata_a_exact;
+        exc_csr_wen_o = 1'b1;
+      end
+      SYS_INSTR_CSRRC: begin
+        mem_csr_rf_wdata_sel_o = 1'b1;
+        exc_csr_wdata_o = mem_csr_rf_wdata_o & ~rf_rdata_a_exact;
+        exc_csr_wen_o = 1'b1;
+      end
+      default: begin
+        mem_csr_rf_wdata_sel_o = 1'b0;
+        exc_csr_wdata_o = 32'h0000_0000;
+        exc_csr_wen_o = 1'b0;
+      end
+    endcase
   end
 endmodule

@@ -58,7 +58,7 @@ module wb_stage(
     // regfile write signals
     rf_wdata_o = rf_wdata;
     rf_waddr_o = rf_waddr;
-    rf_wen_o = rf_wen;
+    rf_wen_o = rf_wen & ~stall_i;
 
     // signals to forward unit
     wb_rf_wdata_o = rf_wdata;

@@ -7,6 +7,8 @@ module (
   input wire clk_i,
   input wire rst_i,
 
+  // TODO
+
   // Wishbone slave
   input wire wb_cyc_i,
   input wire wb_stb_i,
@@ -15,11 +17,16 @@ module (
   input wire [31:0] wb_dat_i,
   output reg [31:0] wb_dat_o,
   input wire [ 3:0] wb_sel_i,
-  input wire wb_we_i
+  input wire wb_we_i,
+
+  // machine interrupt signals to the CPU
+  output wire mit_occur_o
 );
 
 csr_mtime_t mtime_reg;
 csr_mtimecmp_t mtimecmp_reg;
+
+assign mit_occur_o = (mtime_reg >= mtimecmp_reg);
 
 // ==== Begin read hardwire ====
 always_comb begin
@@ -69,22 +76,30 @@ always_ff @(posedge clk_i) begin
               end
               `CSR_MTIMECMP_MEM_ADDR: begin
                 mtimecmp_reg[31:0] <= wb_dat_i;
+                mtime_reg <= mtime_reg + 1;
               end
               `CSR_MTIMECMP_MEM_ADDR+4: begin
                 mtimecmp_reg[63:32] <= wb_dat_i;
+                mtime_reg <= mtime_reg + 1;
               end
-              default: ;
+              default: begin
+                mtime_reg <= mtime_reg + 1;
+              end
             endcase
+          end else begin
+            mtime_reg <= mtime_reg + 1;
           end
-
           ack_o <= 1'b1;
           state <= STATE_DONE;
+        end else begin
+          mtime_reg <= mtime_reg + 1;
         end
       end
 
       STATE_DONE: begin
         ack_o <= 1'b0;
         state <= STATE_IDLE;
+        mtime_reg <= mtime_reg + 1;
       end
     endcase
   end

@@ -4,9 +4,17 @@ module pipeline_controller(
 
   // signals from IF stage
   input wire        if_busy_i,
+  // pc signals to IF stage
+  output reg [31:0] if_pc_o,
+  output reg        if_pc_sel_o,
 
   // pc signals from EXE stage
+  input wire [31:0] exe_pc_i,
   input wire        exe_pc_sel_i,  // 0: pc+4, 1: exe_pc
+  // pc signals from exception unit
+  input wire [31:0] exc_pc_i,
+  input wire        exc_pc_sel_i,
+  input wire        interrupt_occur_i,
 
   // signals from ID stage
   input wire [ 4:0] id_rf_raddr_a_i,
@@ -129,6 +137,12 @@ module pipeline_controller(
       id_flush_o = 1'b1;
       exe_flush_o = 1'b1;
     end
+
+    // pc mux for IF stage
+    if_pc_o = exc_pc_sel_i ? exc_pc_i :
+              exe_pc_sel_i ? exe_pc_i :
+              32'h0000_0000;
+    if_pc_sel_o = exc_pc_sel_i | exe_pc_sel_i;
   end
 
 endmodule

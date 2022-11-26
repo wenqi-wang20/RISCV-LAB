@@ -14,7 +14,19 @@
 `define CSR_MSCRATCH_ADDR 12'h340
 `define CSR_MEPC_ADDR     12'h341
 `define CSR_MCAUSE_ADDR   12'h342
+`define CSR_MHARTID_ADDR  12'hf14
+`define CSR_MEDELEG_ADDR  12'h302
+`define CSR_MIDELEG_ADDR  12'h303
+`define CSR_MTVAL_ADDR    12'h343
 
+`define CSR_SSTATUS_ADDR  12'h100
+`define CSR_SEPC_ADDR     12'h141
+`define CSR_SCAUSE_ADDR   12'h142
+`define CSR_STVAL_ADDR    12'h143
+`define CSR_STVEC_ADDR    12'h105
+`define CSR_SSCRATCH_ADDR 12'h140
+`define CSR_SIE_ADDR      12'h104
+`define CSR_SIP_ADDR      12'h144
 `define CSR_SATP_ADDR     12'h180
 
 // These are MMIO registers
@@ -98,22 +110,78 @@ typedef struct packed {
   logic [30:0] exc_code; // WLRL, spec p37
 } csr_mcause_t;
 
-////////
+// No need for an actual register in a single-processor system.
+typedef logic [31:0] csr_mhartid_t;
+
+typedef logic [31:0] csr_mideleg_t;
+
+typedef logic [31:0] csr_medeleg_t;
+
+typedef logic [31:0] csr_mtval_t;
+
+//////// S-mode registers
+
+typedef struct packed {
+  logic        sd;
+  logic [10:0] _p_0;
+  logic        mxr;
+  logic        sum;
+  logic        _p_1;
+  logic  [1:0] xs;
+  logic  [1:0] fs;
+  logic  [3:0] _p_2;
+  logic        spp;
+  logic  [1:0] _p_3;
+  logic        spie;
+  logic        upie;
+  logic  [1:0] _p_4;
+  logic        sie;
+  logic        uie;
+} csr_sstatus_t;
+
+typedef logic [31:0] csr_sepc_t;
+
+typedef struct packed {
+  logic        interrupt;
+  logic [30:0] exc_code;
+} csr_scause_t;
+
+typedef logic [31:0] csr_stval_t;
+
+typedef struct packed {
+  logic [29:0] base;
+  logic [ 1:0] mode;
+} csr_stvec_t;
+
+typedef logic [31:0] csr_sscratch_t;
+
+typedef struct packed {
+  logic [21:0] _p_0;
+  logic        seip;
+  logic        ueip;
+  logic [ 1:0] _p_1;
+  logic        stip;
+  logic        utip;
+  logic [ 1:0] _p_2;
+  logic        ssip;
+  logic        usip;
+} csr_sip_t;
+
+typedef struct packed {
+  logic [21:0] _p_0;
+  logic        seie;
+  logic        ueie;
+  logic [ 1:0] _p_1;
+  logic        stie;
+  logic        utie;
+  logic [ 1:0] _p_2;
+  logic        ssie;
+  logic        usie;
+} csr_sie_t;
+
 typedef struct packed {
   logic        mode; // Mode 0: 'Bare' mode, 1: 'Sv32' mode
   logic [ 8:0] asid; // Address space identifier
   logic [21:0] ppn;  // the physical page number (PPN) of the root page table
 } csr_satp_t;
 // ===== End CSR definitions =====
-
-// ===== Exception instruction type =====
-
-`define EXC_INSTR_T_WIDTH 4
-
-typedef enum logic [EXC_INSTR_T_WIDTH-1:0] {
-  EXC_CSRRW,
-  EXC_CSRRS,
-  EXC_CSRRC,
-  EXC_ECALL,
-  EXC_EBREAK
-} exc_instr_t;
