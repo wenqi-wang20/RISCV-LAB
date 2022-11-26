@@ -1,6 +1,7 @@
 `timescale 1ns / 1ps
 //
 // WIDTH: bits in register hdata & vdata
+// 12 
 // HSIZE: horizontal size of visible field 
 // HFP: horizontal front of pulse
 // HSP: horizontal stop of pulse
