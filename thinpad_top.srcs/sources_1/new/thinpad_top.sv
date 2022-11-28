@@ -664,28 +664,63 @@ module thinpad_top (
   // 图像输出演示，分辨率 800x600@75Hz，像素时钟为 50MHz
   logic [11:0] hdata;
   logic [11:0] vdata;
+  logic [ 7:0] rdata;
   logic [7:0] pixel;
+  logic vga_de;
+  // 图片的放大倍数，默认为 2^3 倍
+  logic [2:0] vga_scale = 4'b011;     
+  logic [18:0] bram_addr_st = 19'b0;
 
-  assign video_red   = pixel[7:5];  // 红色竖条
-  assign video_green = pixel[4:2];  // 绿色竖条
-  assign video_blue  = pixel[1:0];  // 蓝色竖条
+  // block ram 信号，目前的数据宽度为 8bit，地址宽度为 19bit
+  logic bram_ena_i = 1'b1;
+  logic bram_enb_i  = 1'b1;
+  logic bram_wea_i = 1'b0;
+  logic [18:0] bram_addra_i;
+  logic [7:0] bram_data_i;
+  logic [18:0] bram_addrb_i;
+  logic [7:0] bram_data_o;
+
+
+
+  assign video_red   = pixel[7:5];  // 红色
+  assign video_green = pixel[4:2];  // 绿色
+  assign video_blue  = pixel[1:0];  // 蓝色
   assign video_clk   = clk_50M;
+  assign vga_de = video_de;
 
   vga #(12, 800, 856, 976, 1040, 600, 637, 643, 666, 1, 1) vga800x600at75 (
       .clk        (clk_50M),
-      .hdata      (hdata),        // 横向周期计数
+      .hdata      (hdata),             // 横向周期计数
       .vdata      (vdata),             // 纵向周期计数
       .hsync      (video_hsync),
       .vsync      (video_vsync),
       .data_enable(video_de)
   );
 
-  vga_pic #(12, 800, 600) pic (
+  vga_pic #(12, 800, 600, 19) pic (
       .vga_clk    (clk_50M),
       .hdata      (hdata),
       .vdata      (vdata),
-      .pixel      (pixel)
+      .vga_scale  (vga_scale),
+      .pixel      (pixel),
+      .r_addr_st  (bram_addr_st),
+      .r_addr     (bram_addrb_i),
+      .r_data     (bram_data_o)
   );
+
+  pic_bram pic_mem (
+    .clka         (sys_clk),
+    .ena          (bram_ena_i),
+    .wea          (bram_wea_i),
+    .addra        (bram_addra_i),
+    .dina         (bram_data_i),
+    .clkb         (clk_50M),
+    .enb          (bram_enb_i),
+    .addrb        (bram_addrb_i),
+    .doutb        (bram_data_o)
+  );
+
+
   /* =========== VGA end =========== */
   
 
