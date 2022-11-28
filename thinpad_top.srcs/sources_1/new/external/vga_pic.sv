@@ -64,7 +64,7 @@ module vga_pic #(
     end
 
     always_ff @ (posedge vga_clk) begin
-        if (hdata < picwidth && vdata < picheight) begin
+        if (hdata < HSIZE && vdata < VSIZE) begin
             pixel <= r_data;
         end else begin
             pixel <= WHITE;

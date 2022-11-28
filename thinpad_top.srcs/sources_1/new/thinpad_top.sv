@@ -668,7 +668,7 @@ module thinpad_top (
   logic [7:0] pixel;
   logic vga_de;
   // 图片的放大倍数，默认为 2^3 倍
-  logic [2:0] vga_scale = 4'b011;     
+  logic [2:0] vga_scale = 3'b011;     
   logic [18:0] bram_addr_st = 19'b0;
 
   // block ram 信号，目前的数据宽度为 8bit，地址宽度为 19bit
