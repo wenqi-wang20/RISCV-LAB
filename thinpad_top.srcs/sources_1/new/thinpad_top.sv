@@ -675,8 +675,8 @@ module thinpad_top (
   logic bram_ena_i = 1'b1;
   logic bram_enb_i  = 1'b1;
   logic bram_wea_i = 1'b0;
-  logic [18:0] bram_addra_i;
-  logic [7:0] bram_data_i;
+  logic [18:0] bram_addra_i = 19'b0;
+  logic [7:0] bram_data_i = 8'b0;
   logic [18:0] bram_addrb_i;
   logic [7:0] bram_data_o;
 
