@@ -2,8 +2,8 @@ module bram_controller #(
     parameter WISHBONE_DATA_WIDTH = 32,
     parameter WISHBONE_ADDR_WIDTH = 32,
 
-    parameter BRAM_DATA_WIDTH = 32,
-    parameter BRAM_ADDR_WIDTH = 17
+    parameter BRAM_DATA_WIDTH = 8,
+    parameter BRAM_ADDR_WIDTH = 19
 )(
     // clock and reset
     input wire clk_i,
@@ -72,7 +72,7 @@ module bram_controller #(
     wire [BRAM_DATA_WIDTH-1:0] w_data;
     assign addr_a = wb_adr_i[BRAM_ADDR_WIDTH-1:0];
     assign addr_b = wb_adr_i[BRAM_ADDR_WIDTH-1:0];
-    assign w_data = wb_dat_i[31:24];
+    assign w_data = wb_dat_i[7:0];
 
     // 读取数据
     logic [BRAM_DATA_WIDTH-1:0] data_reg;
@@ -83,7 +83,6 @@ module bram_controller #(
         // 将写数据硬连线到 bram 的写口
         // 将 bram 读数据硬连线到寄存器
         bram_wea_o = 0;
-        bram_data_o = w_data;
         data_reg = bram_data_i;
 
         case(state)
@@ -123,6 +122,8 @@ module bram_controller #(
                 if (wb_cyc_i && wb_stb_i) begin
                     if(!wb_we_i) begin      // read
                         wb_dat_o <= data_reg;
+                    end else begin 
+                        bram_data_o <= w_data;
                     end
                     wb_ack_o <= 1;
                 end
