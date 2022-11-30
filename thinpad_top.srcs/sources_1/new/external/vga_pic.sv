@@ -65,7 +65,7 @@ module vga_pic #(
         height_y = vdata >> vga_scale;
 
         r_addr_byte = r_addr_st + (height_y * picwidth) + width_x;
-        r_addr = r_addr_byte;
+        r_addr = r_addr_byte >> 2;
         r_addr_sel = r_addr_byte[1:0];
 
         if(r_addr_sel == 2'b00) begin
