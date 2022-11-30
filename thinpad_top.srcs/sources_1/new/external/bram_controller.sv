@@ -24,9 +24,7 @@ module bram_controller #(
     output reg  [BRAM_DATA_WIDTH-1:0] bram_data_o,
     output reg  [BRAM_ADDR_WIDTH-1:0] bram_addr_a_o,
     output reg  [BRAM_ADDR_WIDTH-1:0] bram_addr_b_o,
-    output reg  [BRAM_DATA_WIDTH/8-1:0] bram_wea_o,
-    // 控制写使能
-    output reg bram_ena_o
+    output reg  [BRAM_DATA_WIDTH/8-1:0] bram_wea_o
 
 );
     typedef enum logic [1:0] {
@@ -37,6 +35,14 @@ module bram_controller #(
     state_t state, next_state;
 
     // 状态转移
+    always @(posedge clk_i) begin
+        if (rst_i) begin
+            state <= IDLE;
+        end else begin
+            state <= next_state;
+        end
+    end
+
     always_comb begin
         next_state = IDLE;
         case(state)
@@ -61,10 +67,12 @@ module bram_controller #(
     end
 
     // 四字节读取、写入，地址对齐
-    wire [BRAM_ADDR_WIDTH+1:2] addr_a;
-    wire [BRAM_ADDR_WIDTH+1:2] addr_b;
-    assign addr_a = wb_adr_i[BRAM_ADDR_WIDTH+1:2];
-    assign addr_b = wb_adr_i[BRAM_ADDR_WIDTH+1:2];
+    wire [BRAM_ADDR_WIDTH-1:0] addr_a;
+    wire [BRAM_ADDR_WIDTH-1:0] addr_b;
+    wire [BRAM_DATA_WIDTH-1:0] w_data;
+    assign addr_a = wb_adr_i[BRAM_ADDR_WIDTH-1:0];
+    assign addr_b = wb_adr_i[BRAM_ADDR_WIDTH-1:0];
+    assign w_data = 8'hB7;
 
     // 读取数据
     logic [BRAM_DATA_WIDTH-1:0] data_reg;
@@ -74,21 +82,19 @@ module bram_controller #(
         // 默认不写入字节，不读取字节
         // 将写数据硬连线到 bram 的写口
         // 将 bram 读数据硬连线到寄存器
-        bram_wea_o = wb_sel_i;
-        bram_data_o = wb_dat_i;
+        bram_wea_o = 0;
+        bram_data_o = w_data;
         data_reg = bram_data_i;
-
-        // 无请求时，bram 写端口无效
-        bram_ena_o = 0;
 
         case(state)
             IDLE: begin
                 if (wb_cyc_i && wb_stb_i) begin
                     if (wb_we_i) begin  // write
                         bram_addr_a_o = addr_a;
-                        bram_ena_o = 1;
+                        bram_wea_o = 1;
                     end else begin      // read
                         bram_addr_b_o = addr_b;
+                        bram_wea_o = 0;
                     end
                 end
             end
@@ -96,11 +102,12 @@ module bram_controller #(
             // 在读写期间时钟保持地址信号不变
             READ: begin
                 bram_addr_a_o = addr_a;
+                bram_wea_o = 0;
             end
 
             WRITE: begin
                 bram_addr_b_o = addr_b;
-                bram_ena_o = 1;
+                bram_wea_o = 1;
             end
         endcase
     end

@@ -15,7 +15,7 @@ module vga_pic #(
     // 输入 vga 有效显示区的 y 坐标
     input wire [WIDTH-1:0] vdata,
     // vga 的放大倍数
-    input wire [WIDTH-1:0] vga_scale,
+    input wire [2:0] vga_scale,
     // 输出 vga 有效显示区的像素颜色
     output reg [7:0] pixel,
     
@@ -24,7 +24,7 @@ module vga_pic #(
     // bram 输出地址
     output reg [BRAMADDR_WIDTH-1:0] r_addr,
     // bram 输出数据
-    input wire [31:0] r_data
+    input wire [7:0] r_data
 );
     parameter RED = 8'hA0;
     parameter GREEN = 8'h08;
@@ -56,33 +56,16 @@ module vga_pic #(
     // |       |       |       |       |
     // ---------------------------------
 
-    logic [BRAMADDR_WIDTH-1:0] r_addr_byte;
-    logic [1:0] r_addr_sel;
-    logic [7:0] r_data_sel;
-
     always_comb begin
         width_x = hdata >> vga_scale;
         height_y = vdata >> vga_scale;
 
-        r_addr_byte = r_addr_st + (height_y * picwidth) + width_x;
-        r_addr = r_addr_byte >> 2;
-        r_addr_sel = r_addr_byte[1:0];
-
-        if(r_addr_sel == 2'b00) begin
-            r_data_sel = r_data[7:0];
-        end else if (r_addr_sel == 2'b01) begin
-            r_data_sel = r_data[15:8];
-        end else if (r_addr_sel == 2'b10) begin
-            r_data_sel = r_data[23:16];
-        end else begin
-            r_data_sel = r_data[31:24];
-        end
-
+        r_addr = r_addr_st + (height_y * picwidth) + width_x;
     end
 
     always_ff @ (posedge vga_clk) begin
         if (hdata < HSIZE && vdata < VSIZE) begin
-            pixel <= r_data_sel;
+            pixel <= r_data;
         end else begin
             pixel <= WHITE;
         end

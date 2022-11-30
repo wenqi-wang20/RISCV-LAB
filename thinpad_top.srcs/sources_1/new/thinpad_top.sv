@@ -686,11 +686,11 @@ module thinpad_top (
 
 
   // blockram_0 控制信号
-  logic [31:0] bram_0_rdata;
-  logic [31:0] bram_0_wdata;
-  logic [16:0] bram_0_raddr;
-  logic [16:0] bram_0_waddr;
-  logic [3:0] bram_0_wea;
+  logic [7:0] bram_0_rdata;
+  logic [7:0] bram_0_wdata;
+  logic [18:0] bram_0_raddr;
+  logic [18:0] bram_0_waddr;
+  logic bram_0_wea;
   logic bram_0_ena;
 
 
@@ -699,8 +699,8 @@ module thinpad_top (
       .WISHBONE_DATA_WIDTH(32),
       .WISHBONE_ADDR_WIDTH(32),
 
-      .BRAM_DATA_WIDTH(32),
-      .BRAM_ADDR_WIDTH(17)
+      .BRAM_DATA_WIDTH(8),
+      .BRAM_ADDR_WIDTH(19)
   ) bram_controller_0 (
       .clk_i(sys_clk),
       .rst_i(sys_rst),
@@ -720,8 +720,7 @@ module thinpad_top (
       .bram_data_o(bram_0_wdata),
       .bram_addr_a_o(bram_0_waddr),
       .bram_addr_b_o(bram_0_raddr),
-      .bram_wea_o(bram_0_wea),
-      .bram_ena_o(bram_0_ena)
+      .bram_wea_o(bram_0_wea)
   );
 
   /* =========== Wishbone Slaves end =========== */
@@ -741,10 +740,10 @@ module thinpad_top (
   logic bram_ena_i = 1'b1;
   logic bram_enb_i  = 1'b1;
   logic bram_wea_i = 4'b0000;
-  logic [16:0] bram_addra_i = 16'b0;
-  logic [31:0] bram_data_i = 32'b0;
-  logic [16:0] bram_addrb_i;
-  logic [31:0] bram_data_o;
+  logic [18:0] bram_addra_i = 19'b0;
+  logic [7:0] bram_data_i = 32'b0;
+  logic [18:0] bram_addrb_i;
+  logic [7:0] bram_data_o;
 
 
 
@@ -763,7 +762,7 @@ module thinpad_top (
       .data_enable(video_de)
   );
 
-  vga_pic #(12, 800, 600, 17) pic (
+  vga_pic #(12, 800, 600, 19) pic (
       .vga_clk    (clk_50M),
       .hdata      (hdata),
       .vdata      (vdata),
@@ -776,7 +775,7 @@ module thinpad_top (
 
   pic_bram pic_mem_0 (
     .clka         (sys_clk),
-    .ena          (bram_0_ena),
+    .ena          (bram_ena_i),
     .wea          (bram_0_wea),
     .addra        (bram_0_waddr),
     .dina         (bram_0_wdata),
