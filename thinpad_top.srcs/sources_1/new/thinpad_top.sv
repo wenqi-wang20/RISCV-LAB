@@ -697,7 +697,7 @@ module thinpad_top (
   // block RAM 控制器模�?
   bram_controller #(
       .WISHBONE_DATA_WIDTH(32),
-      .WISHBONE_ADDR_WIDTH(32)
+      .WISHBONE_ADDR_WIDTH(32),
 
       .BRAM_DATA_WIDTH(32),
       .BRAM_ADDR_WIDTH(17)

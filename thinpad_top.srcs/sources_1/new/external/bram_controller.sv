@@ -21,7 +21,7 @@ module bram_controller #(
 
     // block ram interface
     input wire [BRAM_DATA_WIDTH-1:0] bram_data_i,
-    output reg  [BRAM_DATA_WIDTH-1:0] bram_dat_o,
+    output reg  [BRAM_DATA_WIDTH-1:0] bram_data_o,
     output reg  [BRAM_ADDR_WIDTH-1:0] bram_addr_a_o,
     output reg  [BRAM_ADDR_WIDTH-1:0] bram_addr_b_o,
     output reg  [BRAM_DATA_WIDTH/8-1:0] bram_wea_o,
