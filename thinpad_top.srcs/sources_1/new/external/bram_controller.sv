@@ -72,7 +72,7 @@ module bram_controller #(
     wire [BRAM_DATA_WIDTH-1:0] w_data;
     assign addr_a = wb_adr_i[BRAM_ADDR_WIDTH-1:0];
     assign addr_b = wb_adr_i[BRAM_ADDR_WIDTH-1:0];
-    assign w_data = 8'hB7;
+    assign w_data = wb_dat_i[7:0];
 
     // 读取数据
     logic [BRAM_DATA_WIDTH-1:0] data_reg;
