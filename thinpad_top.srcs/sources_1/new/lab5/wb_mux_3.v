@@ -111,39 +111,66 @@ module wb_mux_3 #
      * Wishbone slave 2 address configuration
      */
     input  wire [ADDR_WIDTH-1:0]   wbs2_addr,     // Slave address prefix
-    input  wire [ADDR_WIDTH-1:0]   wbs2_addr_msk  // Slave address prefix mask
+    input  wire [ADDR_WIDTH-1:0]   wbs2_addr_msk,  // Slave address prefix mask
+
+
+    /*
+     * Wishbone slave 3 output
+     */
+    output wire [ADDR_WIDTH-1:0]   wbs3_adr_o,    // ADR_O() address output
+    input  wire [DATA_WIDTH-1:0]   wbs3_dat_i,    // DAT_I() data in
+    output wire [DATA_WIDTH-1:0]   wbs3_dat_o,    // DAT_O() data out
+    output wire                    wbs3_we_o,     // WE_O write enable output
+    output wire [SELECT_WIDTH-1:0] wbs3_sel_o,    // SEL_O() select output
+    output wire                    wbs3_stb_o,    // STB_O strobe output
+    input  wire                    wbs3_ack_i,    // ACK_I acknowledge input
+    input  wire                    wbs3_err_i,    // ERR_I error input
+    input  wire                    wbs3_rty_i,    // RTY_I retry input
+    output wire                    wbs3_cyc_o,    // CYC_O cycle output
+
+    /*
+     * Wishbone slave 3 address configuration
+     */
+    input  wire [ADDR_WIDTH-1:0]   wbs3_addr,     // Slave address prefix
+    input  wire [ADDR_WIDTH-1:0]   wbs3_addr_msk  // Slave address prefix mask
 );
 
 wire wbs0_match = ~|((wbm_adr_i ^ wbs0_addr) & wbs0_addr_msk);
 wire wbs1_match = ~|((wbm_adr_i ^ wbs1_addr) & wbs1_addr_msk);
 wire wbs2_match = ~|((wbm_adr_i ^ wbs2_addr) & wbs2_addr_msk);
+wire wbs3_match = ~|((wbm_adr_i ^ wbs3_addr) & wbs3_addr_msk);
 
 wire wbs0_sel = wbs0_match;
 wire wbs1_sel = wbs1_match & ~(wbs0_match);
 wire wbs2_sel = wbs2_match & ~(wbs0_match | wbs1_match);
+wire wbs3_sel = wbs3_match & ~(wbs0_match | wbs1_match | wbs2_match);
 
 wire master_cycle = wbm_cyc_i & wbm_stb_i;
 
-wire select_error = ~(wbs0_sel | wbs1_sel | wbs2_sel) & master_cycle;
+wire select_error = ~(wbs0_sel | wbs1_sel | wbs2_sel | wbs3_sel) & master_cycle;
 
 // master
 assign wbm_dat_o = wbs0_sel ? wbs0_dat_i :
                    wbs1_sel ? wbs1_dat_i :
                    wbs2_sel ? wbs2_dat_i :
+                   wbs3_sel ? wbs3_dat_i :
                    {DATA_WIDTH{1'b0}};
 
 assign wbm_ack_o = wbs0_ack_i |
                    wbs1_ack_i |
-                   wbs2_ack_i;
+                   wbs2_ack_i |
+                   wbs3_ack_i;
 
 assign wbm_err_o = wbs0_err_i |
                    wbs1_err_i |
                    wbs2_err_i |
+                   wbs3_err_i | 
                    select_error;
 
 assign wbm_rty_o = wbs0_rty_i |
                    wbs1_rty_i |
-                   wbs2_rty_i;
+                   wbs2_rty_i |
+                   wbs3_rty_i;
 
 // slave 0
 assign wbs0_adr_o = wbm_adr_i;
@@ -168,6 +195,14 @@ assign wbs2_we_o = wbm_we_i & wbs2_sel;
 assign wbs2_sel_o = wbm_sel_i;
 assign wbs2_stb_o = wbm_stb_i & wbs2_sel;
 assign wbs2_cyc_o = wbm_cyc_i & wbs2_sel;
+
+// slave 3
+assign wbs3_adr_o = wbm_adr_i;
+assign wbs3_dat_o = wbm_dat_i;
+assign wbs3_we_o = wbm_we_i & wbs3_sel;
+assign wbs3_sel_o = wbm_sel_i;
+assign wbs3_stb_o = wbm_stb_i & wbs3_sel;
+assign wbs3_cyc_o = wbm_cyc_i & wbs3_sel;
 
 
 endmodule
