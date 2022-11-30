@@ -1,4 +1,5 @@
 *.*
 !*.xci
 !*.xml
+!*.coe
 !.gitignore
