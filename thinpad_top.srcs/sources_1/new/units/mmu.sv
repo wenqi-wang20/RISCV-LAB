@@ -179,7 +179,7 @@ module mmu (
   assign direct = satp.mode == 1'b0 || v_addr < 32'h8000_0000 || v_addr > 32'h807F_FFFF;
   assign valid = (v_addr >= 32'h8000_0000 && v_addr <= 32'h807F_FFFF) ||
                  (v_addr >= 32'h1000_0000 && v_addr <= 32'h1000_FFFF) ||
-                 (v_addr >= 32'h2000_0000 && v_addr <= 32'h2000_FFFF);
+                 (v_addr >= 32'h200_0000 && v_addr <= 32'h200_FFFF);
 
   assign invalid_addr_o = ~valid;
 

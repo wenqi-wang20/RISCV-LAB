@@ -207,6 +207,7 @@ wire deleg_sync_exc;
 assign deleg_interrupt = mideleg_reg[exc_code];
 assign deleg_sync_exc = medeleg_reg[exc_code];
 
+// Output signals
 always_comb begin
   nxt_privilege_o = 0;
   if (exc_en_i) begin
@@ -215,6 +216,12 @@ always_comb begin
   else if (exc_ret_i) begin
     nxt_privilege_o = mstatus_reg.mpp;
   end
+end
+
+always_comb begin
+  next_pc_o = mtvec_reg.mode == 1'b0 ?
+              mtvec_reg.base : /* direct */
+              mtvec_reg.base + (exc_code << 2); /* vectored */
 end
 
 // ====== Write logic ======
@@ -254,11 +261,6 @@ always_ff @(posedge clk_i) begin
 
     // Disable interrupts
     mstatus_reg.mie <= 1'b0;
-
-    // Output exception handler pc
-    next_pc_o <= mtvec_reg.mode == 1'b0 ?
-                 mtvec_reg.base : /* direct */
-                 mtvec_reg.base + (exc_code << 2); /* vectored */
 
   end else if (exc_ret_i) begin
     // Return from trap (privilege spec 3.1.6.1)
