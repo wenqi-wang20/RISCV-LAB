@@ -76,30 +76,30 @@ always_ff @(posedge clk_i) begin
               end
               `CSR_MTIMECMP_MEM_ADDR: begin
                 mtimecmp_reg[31:0] <= wb_dat_i;
-                mtime_reg <= mtime_reg + 1;
+                mtime_reg <= mtime_reg + 64'b1;
               end
               `CSR_MTIMECMP_MEM_ADDR+4: begin
                 mtimecmp_reg[63:32] <= wb_dat_i;
-                mtime_reg <= mtime_reg + 1;
+                mtime_reg <= mtime_reg + 64'b1;
               end
               default: begin
-                mtime_reg <= mtime_reg + 1;
+                mtime_reg <= mtime_reg + 64'b1;
               end
             endcase
           end else begin
-            mtime_reg <= mtime_reg + 1;
+            mtime_reg <= mtime_reg + 64'b1;
           end
           wb_ack_o <= 1'b1;
           state <= STATE_DONE;
         end else begin
-          mtime_reg <= mtime_reg + 1;
+          mtime_reg <= mtime_reg + 64'b1;
         end
       end
 
       STATE_DONE: begin
         wb_ack_o <= 1'b0;
         state <= STATE_IDLE;
-        mtime_reg <= mtime_reg + 1;
+        mtime_reg <= mtime_reg + 64'b1;
       end
     endcase
   end

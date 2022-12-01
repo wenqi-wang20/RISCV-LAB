@@ -53,7 +53,7 @@ module pipeline(
 
   /* ========== exception unit signals ========== */
   input  wire        exc_interrupt_i,
-  input  wire        exc_csr_rdata_i,
+  input  wire [31:0] exc_csr_rdata_i,
   input  wire        exc_csr_invalid_r_i,
   input  wire        exc_csr_invalid_w_i,
   output wire [11:0] exc_csr_raddr_o,
@@ -114,6 +114,7 @@ module pipeline(
   logic        exe_forward_alu_a_sel;
   logic        exe_forward_alu_b_sel;
   logic [31:0] exe_mem_csr_rs1_data;
+  logic [ 4:0] exe_mem_csr_rs1_addr;
   logic [`SYS_INSTR_T_WIDTH-1:0] exe_mem_sys_instr;
   logic [  `EXC_SIG_T_WIDTH-1:0] exe_mem_exc_sig;
 
@@ -283,6 +284,7 @@ module pipeline(
     .mem_rf_waddr_o(exe_mem_rf_waddr),
     .mem_rf_wen_o(exe_mem_rf_wen),
     .mem_csr_rs1_data_o(exe_mem_csr_rs1_data),
+    .mem_csr_rs1_addr_o(exe_mem_csr_rs1_addr),
     .mem_sys_instr_o(exe_mem_sys_instr),
     .mem_exc_sig_o(exe_mem_exc_sig),
 
@@ -333,6 +335,7 @@ module pipeline(
     .mem_rf_waddr_i(exe_mem_rf_waddr),
     .mem_rf_wen_i(exe_mem_rf_wen),
     .mem_csr_rs1_data_i(exe_mem_csr_rs1_data),
+    .mem_csr_rs1_addr_i(exe_mem_csr_rs1_addr),
     .mem_sys_instr_i(exe_mem_sys_instr),
     .mem_exc_sig_i(exe_mem_exc_sig),
 

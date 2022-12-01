@@ -260,7 +260,7 @@ module instr_decoder(
                 instr_legal_o = (funct7 == 7'b000_0000 && rs1 == 5'b0_0000 && rd == 5'b0_0000) ? 1'b1 : 1'b0;
                 sys_instr_o = SYS_INSTR_EBREAK;
               end
-              5'b1_0000: begin // mret
+              5'b0_0010: begin // mret
                 case (funct7)
                   7'b001_1000: begin
                     instr_legal_o = (rs1 == 5'b0_0000 && rd == 5'b0_0000) ? 1'b1 : 1'b0;

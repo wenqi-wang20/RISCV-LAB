@@ -219,9 +219,14 @@ always_comb begin
 end
 
 always_comb begin
-  next_pc_o = mtvec_reg.mode == 1'b0 ?
-              mtvec_reg.base : /* direct */
-              mtvec_reg.base + (exc_code << 2); /* vectored */
+  next_pc_o = 0;
+  if (exc_en_i) begin
+    next_pc_o = mtvec_reg.mode == 2'b00 ?
+                {mtvec_reg.base, 2'b00} : /* direct */
+                {mtvec_reg.base, 2'b00} + (exc_code << 2); /* vectored */
+  end else if (exc_ret_i) begin
+    next_pc_o = mepc_reg;
+  end
 end
 
 // ====== Write logic ======
@@ -268,9 +273,6 @@ always_ff @(posedge clk_i) begin
     mstatus_reg.mpie <= 1'b1;
     mstatus_reg.mpp <= `PRIVILEGE_U;
     
-  end else if (mtip_set_en_i | mtip_clear_en_i) begin
-    mip_reg.mtip <= mtip_set_en_i;
-
   end else if (csr_we_i & ~invalid_w_o) begin
     case (csr_waddr_i)
       `CSR_MSTATUS_ADDR: begin
@@ -339,6 +341,10 @@ always_ff @(posedge clk_i) begin
       // TODO: Other CSRs
       default: ;
     endcase
+  end
+
+  else if (mtip_set_en_i | mtip_clear_en_i) begin
+    mip_reg.mtip <= mtip_set_en_i;
   end
 end
 

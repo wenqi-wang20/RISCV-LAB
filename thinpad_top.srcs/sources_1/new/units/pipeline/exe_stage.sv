@@ -41,6 +41,7 @@ module exe_stage(
   output reg [ 4:0] mem_rf_waddr_o,
   output reg        mem_rf_wen_o,
   output reg [31:0] mem_csr_rs1_data_o,
+  output reg [ 4:0] mem_csr_rs1_addr_o,
   output reg [`SYS_INSTR_T_WIDTH-1:0] mem_sys_instr_o,
   output reg [  `EXC_SIG_T_WIDTH-1:0] mem_exc_sig_o,
 
@@ -243,6 +244,7 @@ module exe_stage(
     mem_rf_wen_o = rf_wen & ~exc_sig_gen.exc_occur;
     mem_sys_instr_o = sys_instr;
     mem_csr_rs1_data_o = rf_rdata_a_exact;
+    mem_csr_rs1_addr_o = rf_raddr_a;
 
     // signals to forward unit
     exe_rf_raddr_a_o = rf_raddr_a;

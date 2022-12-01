@@ -28,6 +28,7 @@ module mem_stage(
   input wire [ 4:0] mem_rf_waddr_i,
   input wire        mem_rf_wen_i,
   input wire [31:0] mem_csr_rs1_data_i,
+  input wire [ 4:0] mem_csr_rs1_addr_i,
   input wire [`SYS_INSTR_T_WIDTH-1:0] mem_sys_instr_i,
   input wire [  `EXC_SIG_T_WIDTH-1:0] mem_exc_sig_i,
 
@@ -86,6 +87,7 @@ module mem_stage(
   logic [ 4:0] rf_waddr;
   logic        rf_wen;
   logic [31:0] csr_rs1_data;
+  logic [ 4:0] csr_rs1_addr;
   sys_instr_t  sys_instr;
   exc_sig_t    exc_sig;
 
@@ -223,6 +225,7 @@ module mem_stage(
       rf_waddr <= 5'h0;
       rf_wen <= 1'b0;
       csr_rs1_data <= 32'b0;
+      csr_rs1_addr <= 5'b0;
       sys_instr <= SYS_INSTR_NOP;
       exc_sig <= `EXC_SIG_NULL;
     end else if (stall_i) begin
@@ -237,6 +240,7 @@ module mem_stage(
       rf_waddr <= 5'h0;
       rf_wen <= 1'b0;
       csr_rs1_data <= 32'b0;
+      csr_rs1_addr <= 5'b0;
       sys_instr <= SYS_INSTR_NOP;
       exc_sig <= `EXC_SIG_NULL;
     end else begin
@@ -249,6 +253,7 @@ module mem_stage(
       rf_waddr <= mem_rf_waddr_i;
       rf_wen <= mem_rf_wen_i;
       csr_rs1_data <= mem_csr_rs1_data_i;
+      csr_rs1_addr <= mem_csr_rs1_addr_i;
       sys_instr <= sys_instr_t'(mem_sys_instr_i);
       exc_sig <= mem_exc_sig_i;
     end
@@ -309,17 +314,17 @@ module mem_stage(
     case (sys_instr)
       SYS_INSTR_CSRRW: begin
         csr_wdata_o = csr_rs1_data;
-        csr_wen_o = ~exc_sig.exc_occur;
+        csr_wen_o = (!exc_sig.exc_occur) && (csr_rs1_addr != 5'b0_0000) && (!stall_i);
         csr_rf_wdata_sel = ~exc_sig.exc_occur;
       end
       SYS_INSTR_CSRRS: begin
         csr_wdata_o = csr_rdata_i | csr_rs1_data;
-        csr_wen_o = ~exc_sig.exc_occur;
+        csr_wen_o = ~exc_sig.exc_occur && (csr_rs1_addr != 5'b0_0000) && (!stall_i);
         csr_rf_wdata_sel = ~exc_sig.exc_occur;
       end
       SYS_INSTR_CSRRC: begin
         csr_wdata_o = csr_rdata_i & ~csr_rs1_data;
-        csr_wen_o = ~exc_sig.exc_occur;
+        csr_wen_o = ~exc_sig.exc_occur && (csr_rs1_addr != 5'b0_0000) && (!stall_i);
         csr_rf_wdata_sel = ~exc_sig.exc_occur;
       end
       default: begin
@@ -329,7 +334,7 @@ module mem_stage(
       end
     endcase
     exc_sig_csr_gen = `EXC_SIG_NULL;
-    if ((csr_invalid_r_i || csr_invalid_w_i) && csr_wen_o) begin  // TODO
+    if ((csr_invalid_r_i || csr_invalid_w_i) && csr_wen_o) begin
       exc_sig_csr_gen.exc_occur = 1'b1;
       exc_sig_csr_gen.exc_ret = 1'b0;
       exc_sig_csr_gen.cur_pc = pc;
@@ -339,9 +344,9 @@ module mem_stage(
       exc_sig_csr_gen = exc_sig;
     end
 
-    exc_sig_gen = exc_sig.exc_occur         ? exc_sig :
+    exc_sig_gen = exc_sig.exc_occur ? exc_sig :
                   (mem_enable_exact && exc_sig_mem_gen.exc_occur) ? exc_sig_mem_gen :
-                  exc_sig_sys_gen.exc_occur ? exc_sig_sys_gen :
+                  (exc_sig_sys_gen.exc_occur || exc_sig_sys_gen.exc_ret) ? exc_sig_sys_gen :
                   exc_sig_csr_gen.exc_occur ? exc_sig_csr_gen : `EXC_SIG_NULL;
 
     exc_sig_o = exc_sig_gen;
@@ -370,7 +375,7 @@ module mem_stage(
     wb_instr_o = instr;
     wb_rf_wdata_o = rf_wdata;
     wb_rf_waddr_o = rf_waddr;
-    wb_rf_wen_o = rf_wen;
+    wb_rf_wen_o = rf_wen | csr_rf_wdata_sel;
 
     // mmu signals
     mmu_v_addr_o = alu_result;
