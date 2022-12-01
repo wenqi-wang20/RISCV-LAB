@@ -1,10 +1,10 @@
 module flash_controller #(
-    .WISHBONE_DATA_WIDTH(32),
-    .WISHBONE_ADDR_WIDTH(32),
+    parameter WISHBONE_DATA_WIDTH = 32,
+    parameter WISHBONE_ADDR_WIDTH = 32,
 
-    .FLASH_DATA_WIDTH(8),
-    .FLASH_ADDR_WIDTH(23),
-)(
+    parameter FLASH_DATA_WIDTH = 8,
+    parameter FLASH_ADDR_WIDTH = 23
+) (
     // clock and reset
     input wire clk_i,
     input wire rst_i,
@@ -21,7 +21,7 @@ module flash_controller #(
 
     // flash interface
     output reg [FLASH_DATA_WIDTH-1:0] flash_a_o,
-    inout reg [FLASH_ADDR_WIDTH-1:0] flash_d,
+    inout wire [FLASH_ADDR_WIDTH-1:0] flash_d,
     output reg flash_rp_o,
     output reg flash_ce_o,
     output reg flash_oe_o

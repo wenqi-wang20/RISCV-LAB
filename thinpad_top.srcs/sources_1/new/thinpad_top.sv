@@ -746,6 +746,39 @@ module thinpad_top (
       .bram_wea_o(bram_0_wea)
   );
 
+  // flash 控制信号
+  assign flash_vpen = 1'b1;
+  assign flash_we_n = 1'b1;
+  assign flash_byte_n = 1'b0;
+  
+  flash_controller #(
+      .WISHBONE_DATA_WIDTH(32),
+      .WISHBONE_ADDR_WIDTH(32),
+
+      .FLASH_DATA_WIDTH(8),
+      .FLASH_ADDR_WIDTH(23)
+  ) flash_controller (
+      .clk_i(sys_clk),
+      .rst_i(sys_rst),
+
+      // Wishbone slave (to MUX)
+      .wb_cyc_i(wbs4_cyc_o),
+      .wb_stb_i(wbs4_stb_o),
+      .wb_ack_o(wbs4_ack_i),
+      .wb_adr_i(wbs4_adr_o),
+      .wb_dat_i(wbs4_dat_o),
+      .wb_dat_o(wbs4_dat_i),
+      .wb_sel_i(wbs4_sel_o),
+      .wb_we_i (wbs4_we_o),
+
+      // To flash chip
+      .flash_a_o(flash_a),
+      .flash_d(flash_d),
+      .flash_rp_o(flash_rp_n),
+      .flash_ce_o(flash_ce_n),
+      .flash_oe_o(flash_oe_n)
+  );
+
   /* =========== Wishbone Slaves end =========== */
 
   /* =========== VGA begin =========== */
