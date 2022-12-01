@@ -1,9 +1,9 @@
-module bram_controller #(
-    parameter WISHBONE_DATA_WIDTH = 32,
-    parameter WISHBONE_ADDR_WIDTH = 32,
+module flash_controller #(
+    .WISHBONE_DATA_WIDTH(32),
+    .WISHBONE_ADDR_WIDTH(32),
 
-    parameter BRAM_DATA_WIDTH = 8,
-    parameter BRAM_ADDR_WIDTH = 19
+    .FLASH_DATA_WIDTH(8),
+    .FLASH_ADDR_WIDTH(23),
 )(
     // clock and reset
     input wire clk_i,
@@ -19,14 +19,15 @@ module bram_controller #(
     input wire [WISHBONE_DATA_WIDTH/8-1:0] wb_sel_i,
     input wire wb_we_i,
 
-    // block ram interface
-    input wire [BRAM_DATA_WIDTH-1:0] bram_data_i,
-    output reg  [BRAM_DATA_WIDTH-1:0] bram_data_o,
-    output reg  [BRAM_ADDR_WIDTH-1:0] bram_addr_a_o,
-    output reg  [BRAM_ADDR_WIDTH-1:0] bram_addr_b_o,
-    output reg  [BRAM_DATA_WIDTH/8-1:0] bram_wea_o
-
+    // flash interface
+    output reg [FLASH_DATA_WIDTH-1:0] flash_a_o,
+    inout reg [FLASH_ADDR_WIDTH-1:0] flash_d,
+    output reg flash_rp_o,
+    output reg flash_ce_o,
+    output reg flash_oe_o
 );
+
+    // flash 的 write 指令空转，不进行操作，两个周期后返回正常
     typedef enum logic [1:0] {
         IDLE = 0,
         READ = 1,
@@ -66,64 +67,67 @@ module bram_controller #(
         endcase
     end
 
-    // 单字节读取、写入，不做地址对齐
-    wire [BRAM_ADDR_WIDTH-1:0] addr_a;
-    wire [BRAM_ADDR_WIDTH-1:0] addr_b;
-    wire [BRAM_DATA_WIDTH-1:0] w_data;
-    assign addr_a = wb_adr_i[BRAM_ADDR_WIDTH-1:0];
-    assign addr_b = wb_adr_i[BRAM_ADDR_WIDTH-1:0];
-    assign w_data = wb_dat_i[7:0];
+    // 单字节读取，写入，不做地址对齐
+    wire [FLASH_ADDR_WIDTH-1:0] flash_addr;
+    assign flash_addr = wb_adr_i[FLASH_ADDR_WIDTH-1:0];
 
-    // 读取数据
-    logic [BRAM_DATA_WIDTH-1:0] data_reg;
+    wire [WISHBONE_DATA_WIDTH-1:0] flash_data_i_comb;
+    reg [FLASH_DATA_WIDTH-1:0] flash_data_o_comb;
+    reg flash_data_t_comb;
+
+    assign flash_d = flash_data_t_comb ? 8'bz : flash_data_o_comb;
+    assign flash_data_i_comb = flash_d;
+    assign flash_data_t_comb = 1;
+
 
     // 数据转移
     always_comb begin
-        // 默认不写入字节，不读取字节
-        // 将写数据硬连线到 bram 的写口
-        // 将 bram 读数据硬连线到寄存器
-        bram_wea_o = 0;
-        data_reg = bram_data_i;
+        // 规定不写入字节
+        // 默认不读取字节
+        flash_rp_o = 1;  // 暂时不管 flash 的 reset 按钮
+        flash_oe_o = 1;
+        flash_ce_o = 1;
 
-        case(state)
+        case(state) 
             IDLE: begin
                 if (wb_cyc_i && wb_stb_i) begin
-                    if (wb_we_i) begin  // write
-                        bram_addr_a_o = addr_a;
-                        bram_wea_o = 1;
-                    end else begin      // read
-                        bram_addr_b_o = addr_b;
-                        bram_wea_o = 0;
+                    if(wb_we_i) begin       // write
+                        // pass
+                    end else begin          // read
+                        flash_oe_o = 0;
+                        flash_ce_o = 0;
+                        flash_a_o = flash_addr;
                     end
                 end
             end
 
-            // 在读写期间时钟保持地址信号不变
             READ: begin
-                bram_addr_a_o = addr_a;
-                bram_wea_o = 0;
+                flash_oe_o = 0;
+                flash_ce_o = 0;
+                flash_a_o = flash_addr;
             end
 
             WRITE: begin
-                bram_addr_b_o = addr_b;
-                bram_wea_o = 1;
+                // pass
             end
         endcase
     end
 
-    // 时序逻辑
+
+    // wishbone 数据输出
     always_ff @ (posedge clk_i) begin
         if (rst_i) begin
             wb_ack_o <= 0;
+            // pass for flash reset
         end
 
-        case (state)
+        case(state)
             IDLE: begin
                 if (wb_cyc_i && wb_stb_i) begin
-                    if(!wb_we_i) begin      // read
-                        wb_dat_o <= data_reg;
-                    end else begin 
-                        bram_data_o <= w_data;
+                    if (wb_we_i) begin       // write
+                        // pass
+                    end else begin          // read
+                        wb_dat_o <= flash_data_i_comb;
                     end
                     wb_ack_o <= 1;
                 end
@@ -137,7 +141,6 @@ module bram_controller #(
                 wb_ack_o <= 0;
             end
         endcase
+
     end
-
-
 endmodule

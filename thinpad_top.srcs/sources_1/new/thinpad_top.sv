@@ -43,7 +43,7 @@ module thinpad_top (
     // Flash 存储器信号，参�?? JS28F640 芯片手册
     // 64 Mbit
     output wire [22:0] flash_a,  // Flash 地址，a0 仅在 8bit 模式有效�?16bit 模式无意�?
-    inout wire [15:0] flash_d,  // Flash 数据
+    inout  wire [15:0] flash_d,  // Flash 数据
     output wire flash_rp_n,  // Flash 复位信号，低有效
     output wire flash_vpen,  // Flash 写保护信号，低电平时不能擦除、烧�?
     output wire flash_ce_n,  // Flash 片�?�信号，低有�?
@@ -525,6 +525,15 @@ module thinpad_top (
   logic [3:0] wbs3_sel_o;
   logic wbs3_we_o;
 
+  logic wbs4_cyc_o;
+  logic wbs4_stb_o;
+  logic wbs4_ack_i;
+  logic [31:0] wbs4_adr_o;
+  logic [31:0] wbs4_dat_o;
+  logic [31:0] wbs4_dat_i;
+  logic [3:0] wbs4_sel_o;
+  logic wbs4_we_o;
+
   wb_mux_3 wb_mux (
       .clk(sys_clk),
       .rst(sys_rst),
@@ -603,7 +612,23 @@ module thinpad_top (
       .wbs3_ack_i(wbs3_ack_i),
       .wbs3_err_i('0),
       .wbs3_rty_i('0),
-      .wbs3_cyc_o(wbs3_cyc_o)
+      .wbs3_cyc_o(wbs3_cyc_o),
+
+      // Slave interface 4 (to flash)
+      // Address range: 0x8300_0000 ~ 0x83FF_FFFF
+      .wbs4_addr    (32'h8300_0000),
+      .wbs4_addr_msk(32'hFF00_0000),
+
+      .wbs4_adr_o(wbs4_adr_o),
+      .wbs4_dat_i(wbs4_dat_i),
+      .wbs4_dat_o(wbs4_dat_o),
+      .wbs4_we_o (wbs4_we_o),
+      .wbs4_sel_o(wbs4_sel_o),
+      .wbs4_stb_o(wbs4_stb_o),
+      .wbs4_ack_i(wbs4_ack_i),
+      .wbs4_err_i('0),
+      .wbs4_rty_i('0),
+      .wbs4_cyc_o(wbs4_cyc_o)
   );
 
   /* =========== Wishbone MUX end =========== */
@@ -684,7 +709,6 @@ module thinpad_top (
       .uart_rxd_i(rxd)
   );
 
-
   // blockram_0 控制信号
   logic [7:0] bram_0_rdata;
   logic [7:0] bram_0_wdata;
@@ -692,7 +716,6 @@ module thinpad_top (
   logic [18:0] bram_0_waddr;
   logic bram_0_wea;
   logic bram_0_ena;
-
 
   // block RAM 控制器模�?
   bram_controller #(
