@@ -104,9 +104,9 @@ module mmu_arbiter_2 #
     // Page faults
     input wire mmu_load_pf_i,
     input wire mmu_store_pf_i,
-    input wire mmu_fetch_pf_i
+    input wire mmu_fetch_pf_i,
 
-    input wire mmu_invalid_addr_i,
+    input wire mmu_invalid_addr_i
 
 );
 

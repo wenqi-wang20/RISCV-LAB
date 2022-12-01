@@ -1,5 +1,6 @@
 `include "../../headers/alu.vh"
 `include "../../headers/exc.vh"
+`include "../../headers/privilege.vh"
 module exe_stage(
   input wire clk_i,
   input wire rst_i,
@@ -39,9 +40,9 @@ module exe_stage(
   output reg [31:0] mem_alu_result_o,
   output reg [ 4:0] mem_rf_waddr_o,
   output reg        mem_rf_wen_o,
-  output reg [31:0] mem_csr_rf_wdata_o,      //  csr data to be written to regfile
-  output reg        mem_csr_rf_wdata_sel_o,  //  0: alu_result, 1: csr_rf_wdata
-  output reg [EXC_SIG_T_WIDTH-1:0] mem_exc_sig_o,
+  output reg [31:0] mem_csr_rs1_data_o,
+  output reg [`SYS_INSTR_T_WIDTH-1:0] mem_sys_instr_o,
+  output reg [  `EXC_SIG_T_WIDTH-1:0] mem_exc_sig_o,
 
   // signals from forward unit
   input wire [31:0] exe_forward_alu_a_i,
@@ -56,12 +57,8 @@ module exe_stage(
   output reg        exe_mem_wen_o,
   output reg [ 4:0] exe_rf_waddr_o,
 
-  // signals to exception unit (CSR read/write)
-  output reg [11:0] exc_csr_raddr_o,
-  input wire [31:0] exc_csr_rdata_i,
-  output reg [11:0] exc_csr_waddr_o,
-  output reg [31:0] exc_csr_wdata_o,
-  output reg        exc_csr_wen_o
+  // signals from exception unit
+  input wire        interrupt_i
 );
 
   // pipeline registers
@@ -93,10 +90,7 @@ module exe_stage(
   logic [ 6:0] funct7;
   logic [31:0] rf_rdata_a_exact;
   logic [31:0] rf_rdata_b_exact;
-  logic [11:0] csr_addr;
   exc_sig_t    exc_sig_gen;
-
-  assign csr_addr = instr[31:20];
 
   alu u_alu(
     .a(alu_a),
@@ -122,7 +116,7 @@ module exe_stage(
       rf_waddr <= 5'h0;
       rf_wen <= 1'b0;
       sys_instr <= SYS_INSTR_NOP;
-      exc_sig <= EXC_SIG_NULL;
+      exc_sig <= `EXC_SIG_NULL;
     end else if (stall_i) begin
       // do nothing
     end else if (flush_i) begin
@@ -141,7 +135,7 @@ module exe_stage(
       rf_waddr <= 5'h0;
       rf_wen <= 1'b0;
       sys_instr <= SYS_INSTR_NOP;
-      exc_sig <= EXC_SIG_NULL;
+      exc_sig <= `EXC_SIG_NULL;
     end else begin
       pc <= exe_pc_i;
       instr <= exe_instr_i;
@@ -157,7 +151,7 @@ module exe_stage(
       mem_wen <= exe_mem_wen_i;
       rf_waddr <= exe_rf_waddr_i;
       rf_wen <= exe_rf_wen_i;
-      sys_instr <= exe_sys_instr_i;
+      sys_instr <= sys_instr_t'(exe_sys_instr_i);
       exc_sig <= exe_exc_sig_i;
     end
   end
@@ -226,15 +220,29 @@ module exe_stage(
       if_pc_sel_o = 1'b1;
     end
 
+    // exception signals generation
+    if (interrupt_i) begin
+      exc_sig_gen.exc_occur = 1'b1;
+      exc_sig_gen.exc_ret = 1'b0;
+      exc_sig_gen.cur_pc = pc;
+      exc_sig_gen.sync_exc_code = 31'h0;
+      exc_sig_gen.mtval = 32'h0;
+    end else begin
+      exc_sig_gen = exc_sig;
+    end
+    mem_exc_sig_o = exc_sig_gen;
+
     // signals to MEM stage
     mem_pc_o = pc;
     mem_instr_o = instr;
     mem_mem_wdata_o = rf_rdata_b_exact;
-    mem_mem_en_o = mem_en;
+    mem_mem_en_o = mem_en & ~exc_sig_gen.exc_occur;
     mem_mem_wen_o = mem_wen;
     mem_alu_result_o = alu_result;
     mem_rf_waddr_o = rf_waddr;
-    mem_rf_wen_o = rf_wen;
+    mem_rf_wen_o = rf_wen & ~exc_sig_gen.exc_occur;
+    mem_sys_instr_o = sys_instr;
+    mem_csr_rs1_data_o = rf_rdata_a_exact;
 
     // signals to forward unit
     exe_rf_raddr_a_o = rf_raddr_a;
@@ -243,31 +251,5 @@ module exe_stage(
     exe_mem_wen_o = mem_wen;
     exe_rf_waddr_o = rf_waddr;
 
-    // CSR read/write
-    exc_csr_raddr_o = csr_addr;
-    exc_csr_waddr_o = csr_addr;
-    mem_csr_rf_wdata_o = exc_csr_rdata_i;
-    case (sys_instr)
-      SYS_INSTR_CSRRW: begin
-        mem_csr_rf_wdata_sel_o = 1'b1;
-        exc_csr_wdata_o = rf_rdata_a_exact;
-        exc_csr_wen_o = 1'b1;
-      end
-      SYS_INSTR_CSRRS: begin
-        mem_csr_rf_wdata_sel_o = 1'b1;
-        exc_csr_wdata_o = mem_csr_rf_wdata_o | rf_rdata_a_exact;
-        exc_csr_wen_o = 1'b1;
-      end
-      SYS_INSTR_CSRRC: begin
-        mem_csr_rf_wdata_sel_o = 1'b1;
-        exc_csr_wdata_o = mem_csr_rf_wdata_o & ~rf_rdata_a_exact;
-        exc_csr_wen_o = 1'b1;
-      end
-      default: begin
-        mem_csr_rf_wdata_sel_o = 1'b0;
-        exc_csr_wdata_o = 32'h0000_0000;
-        exc_csr_wen_o = 1'b0;
-      end
-    endcase
   end
 endmodule

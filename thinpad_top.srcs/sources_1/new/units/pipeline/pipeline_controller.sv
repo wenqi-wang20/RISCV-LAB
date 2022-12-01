@@ -1,9 +1,11 @@
+`include "../../headers/exc.vh"
+`include "../../headers/privilege.vh"
 module pipeline_controller(
   input wire clk_i,
   input wire rst_i,
 
   // signals from IF stage
-  input wire        if_busy_i,
+  input wire        if_if_busy_i,
   // pc signals to IF stage
   output reg [31:0] if_pc_o,
   output reg        if_pc_sel_o,
@@ -11,10 +13,6 @@ module pipeline_controller(
   // pc signals from EXE stage
   input wire [31:0] exe_pc_i,
   input wire        exe_pc_sel_i,  // 0: pc+4, 1: exe_pc
-  // pc signals from exception unit
-  input wire [31:0] exc_pc_i,
-  input wire        exc_pc_sel_i,
-  input wire        interrupt_occur_i,
 
   // signals from ID stage
   input wire [ 4:0] id_rf_raddr_a_i,
@@ -35,7 +33,8 @@ module pipeline_controller(
   input wire        mem_mem_wen_i,
 
   // signals from MEM stage
-  input wire        mem_busy_i,
+  input wire        mem_mem_busy_i,
+  input wire [`EXC_SIG_T_WIDTH-1:0] mem_exc_sig_i,
 
   // signals from MEM/WB pipeline registers
   input wire [31:0] wb_rf_wdata_i,
@@ -58,10 +57,54 @@ module pipeline_controller(
   output reg id_flush_o,
   output reg exe_flush_o,
   output reg mem_flush_o,
-  output reg wb_flush_o
+  output reg wb_flush_o,
+
+  // signals to exception unit
+  output reg        exc_exc_en_o,
+  output reg        exc_exc_ret_o,
+  output reg [31:0] exc_cur_pc_o,
+  output reg [30:0] exc_sync_exc_code_o,
+  output reg [31:0] exc_mtval_o,
+
+  // signals to MEM stage and exception unit
+  output reg [ 2:0] privilege_o,
+
+  // pc signals from exception unit
+  input wire [31:0] exc_pc_i,
+  input wire [ 1:0] exc_nxt_privilege_i
 );
 
-  /* ========== forward unit ==========*/
+  logic       mem_busy;      // memory busy status
+  logic [1:0] cpu_priv_lvl;  // cpu current privilege level
+  logic       exc_handling;  // exception handling status
+  exc_sig_t   exc_sig;       // exception signals
+
+  assign mem_busy = if_if_busy_i | mem_mem_busy_i;
+
+  always_ff @(posedge clk_i) begin
+    if (rst_i) begin
+      cpu_priv_lvl <= `PRIVILEGE_M;
+    end else begin
+      if (exc_handling) begin
+        cpu_priv_lvl <= exc_nxt_privilege_i;
+      end
+    end
+  end
+
+  /* ========== exception handler ========== */
+  always_comb begin
+    exc_sig = mem_exc_sig_i;
+    exc_handling = (exc_sig.exc_occur | exc_sig.exc_ret) & ~mem_busy;
+
+    exc_exc_en_o = exc_sig.exc_occur & ~mem_busy;
+    exc_exc_ret_o = exc_sig.exc_ret & ~mem_busy;
+    exc_cur_pc_o = exc_sig.cur_pc;
+    exc_sync_exc_code_o = exc_sig.sync_exc_code;
+    exc_mtval_o = exc_sig.mtval;
+    privilege_o = cpu_priv_lvl;
+  end
+
+  /* ========== forward unit ========== */
   logic mem_forward_enable;
   logic wb_forward_enable;
   always_comb begin
@@ -93,7 +136,7 @@ module pipeline_controller(
     end
   end
 
-  /* ========== hazard detection unit ==========*/
+  /* ========== hazard detection unit ========== */
   logic load_use_hazard;
 
   always_comb begin
@@ -116,33 +159,33 @@ module pipeline_controller(
     mem_flush_o = 1'b0;
     wb_flush_o = 1'b0;
 
-    // IF and MEM stages
-    if (if_busy_i || mem_busy_i) begin
+    if (mem_busy) begin  // stall if memory is busy
       if_stall_o = 1'b1;
       id_stall_o = 1'b1;
       exe_stall_o = 1'b1;
       mem_stall_o = 1'b1;
       wb_stall_o = 1'b1;
-    end
-    
-    // ID stage: next instruction is a load instruction
-    if (load_use_hazard) begin
+    end else if (exc_handling) begin  // flush if exception occurs
+      id_flush_o = 1'b1;
+      exe_flush_o = 1'b1;
+      mem_flush_o = 1'b1;
+      wb_flush_o = 1'b1;
+    end else if (load_use_hazard) begin  // ID stage: last instruction(in EXE stage) is a load instruction
       if_stall_o = 1'b1;
       id_stall_o = 1'b1;
       exe_flush_o = 1'b1;
-    end
-
-    // branch and jump
-    if (exe_pc_sel_i == 1'b1) begin
+    end else if (exe_pc_sel_i == 1'b1) begin  // branch and jump
       id_flush_o = 1'b1;
       exe_flush_o = 1'b1;
     end
-
-    // pc mux for IF stage
-    if_pc_o = exc_pc_sel_i ? exc_pc_i :
+  end
+  
+  /* ========== PC MUX ========== */
+  always_comb begin
+    if_pc_o = exc_handling ? exc_pc_i :
               exe_pc_sel_i ? exe_pc_i :
               32'h0000_0000;
-    if_pc_sel_o = exc_pc_sel_i | exe_pc_sel_i;
+    if_pc_sel_o = exc_handling | exe_pc_sel_i;
   end
 
 endmodule

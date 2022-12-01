@@ -5,12 +5,13 @@
 
 `define SYS_INSTR_T_WIDTH 3
 
-typedef enum logic [SYS_INSTR_T_WIDTH-1:0] {
+typedef enum logic [`SYS_INSTR_T_WIDTH-1:0] {
   SYS_INSTR_CSRRW,
   SYS_INSTR_CSRRS,
   SYS_INSTR_CSRRC,
   SYS_INSTR_ECALL,
   SYS_INSTR_EBREAK,
+  SYS_INSTR_MRET,
   SYS_INSTR_NOP
 } sys_instr_t;
 
@@ -18,16 +19,17 @@ typedef enum logic [SYS_INSTR_T_WIDTH-1:0] {
 
 // ===== signals to Exception Unit =====
 
-`define EXC_SIG_T_WIDTH 96
+`define EXC_SIG_T_WIDTH 97
 
 typedef struct packed {
-  logic        exc_occur,
-  logic [31:0] cur_pc,
-  logic [30:0] sync_exc_code, // WLRL, spec p37
-  logic [31:0] mtval
+  logic        exc_occur;
+  logic        exc_ret;
+  logic [31:0] cur_pc;
+  logic [30:0] sync_exc_code; // WLRL, spec p37
+  logic [31:0] mtval;
 } exc_sig_t;
 
-`define EXC_SIG_NULL {1'b0, 32'b0, 31'b0, 32'b0}
+`define EXC_SIG_NULL {2'b0, 32'b0, 31'b0, 32'b0}
 
 // ===== End signals to Exception Unit =====
 

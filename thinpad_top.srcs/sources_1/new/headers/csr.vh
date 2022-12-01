@@ -1,3 +1,6 @@
+`ifndef CSR_HEADER
+`define CSR_HEADER
+
 // ==== Begin Accessibility and priviledge ====
 `define CSR_READ_ONLY  2'b11
 
@@ -185,3 +188,5 @@ typedef struct packed {
   logic [21:0] ppn;  // the physical page number (PPN) of the root page table
 } csr_satp_t;
 // ===== End CSR definitions =====
+
+`endif

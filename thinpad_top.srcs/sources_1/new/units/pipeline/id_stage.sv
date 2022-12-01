@@ -59,7 +59,7 @@ module id_stage(
   logic [ 4:0] rf_waddr;
   logic        rf_wen;
   logic        instr_legal;
-  sys_instr_t  sys_instr;
+  logic [`SYS_INSTR_T_WIDTH-1:0] sys_instr;
   exc_sig_t    exc_sig_gen;
 
   instr_decoder u_instr_decoder(
@@ -123,8 +123,9 @@ module id_stage(
     exe_sys_instr_o = sys_instr;
 
     // exception signals to EXE stage
-    if (instr_legal) begin
+    if (!instr_legal) begin
       exc_sig_gen.exc_occur = 1'b1;
+      exc_sig_gen.exc_ret = 1'b0;
       exc_sig_gen.cur_pc = pc;
       exc_sig_gen.sync_exc_code = `EXC_ILLEGAL_INSTRUCTION;
       exc_sig_gen.mtval = 32'h0;

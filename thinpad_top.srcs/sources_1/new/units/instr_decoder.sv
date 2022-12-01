@@ -21,10 +21,6 @@ module instr_decoder(
   logic [6:0] funct7;
   logic [4:0] rs1, rs2, rd;
 
-  assign rf_raddr_a_o = rs1;
-  assign rf_raddr_b_o = rs2;
-  assign rf_waddr_o   = rd;
-
   always_comb begin
     opcode = instr_i[6:0];
     funct3 = instr_i[14:12];
@@ -254,9 +250,33 @@ module instr_decoder(
       // TODO: add support for csr illegal instruction exception check
       7'b111_0011: begin // system
         case (funct3)
-          3'b000: begin  // ecall, ebreak
-            instr_legal_o = (funct7 == 7'b000_0000) && (rd == 5'b0_0000) && (rs1 == 5'b0_0000) && (rs2 == 5'b0_0000 || rs2 == 5'b0_0001) ? 1'b1 : 1'b0;
-            sys_instr_o = (rs2 == 5'b0_0000) ? SYS_INSTR_ECALL : SYS_INSTR_EBREAK;
+          3'b000: begin  // ecall, ebreak, mret
+            case (rs2)
+              5'b0_0000: begin  // ecall
+                instr_legal_o = (funct7 == 7'b000_0000 && rs1 == 5'b0_0000 && rd == 5'b0_0000) ? 1'b1 : 1'b0;
+                sys_instr_o = SYS_INSTR_ECALL;
+              end
+              5'b0_0001: begin // ebreak
+                instr_legal_o = (funct7 == 7'b000_0000 && rs1 == 5'b0_0000 && rd == 5'b0_0000) ? 1'b1 : 1'b0;
+                sys_instr_o = SYS_INSTR_EBREAK;
+              end
+              5'b1_0000: begin // mret
+                case (funct7)
+                  7'b001_1000: begin
+                    instr_legal_o = (rs1 == 5'b0_0000 && rd == 5'b0_0000) ? 1'b1 : 1'b0;
+                    sys_instr_o = SYS_INSTR_MRET;
+                  end
+                  default: begin
+                    instr_legal_o = 1'b0;
+                    sys_instr_o = SYS_INSTR_NOP;
+                  end
+                endcase
+              end
+              default: begin
+                instr_legal_o = 1'b0;
+                sys_instr_o = SYS_INSTR_NOP;
+              end
+            endcase
           end
           3'b001: begin  // csrrw
             instr_legal_o = 1'b1;
@@ -356,7 +376,7 @@ module instr_decoder(
       end
       7'b111_0011: begin // system
         case (funct3)
-          3'b000: begin  // ecall, ebreak
+          3'b000: begin  // ecall, ebreak, mret
             rf_wen_o = 1'b0;
           end
           3'b001: begin  // csrrw
@@ -378,4 +398,8 @@ module instr_decoder(
       end
     endcase
   end
+
+  assign rf_raddr_a_o = rs1;
+  assign rf_raddr_b_o = rs2;
+  assign rf_waddr_o   = rd;
 endmodule

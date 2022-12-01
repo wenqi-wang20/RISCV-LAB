@@ -70,7 +70,7 @@ module mmu (
   output reg store_pf_o,
   output reg fetch_pf_o,
 
-  output wire invalid_addr_o;
+  output wire invalid_addr_o,
 
   // Wishbone master
   output reg         wb_cyc_o,
@@ -226,7 +226,7 @@ module mmu (
             ack_o <= 1'b1;
             state <= STATE_DONE;
 
-          else if (r_en | w_en) begin
+          end else if (r_en | w_en) begin
             if (tlb_hit) begin
               phy_addr <= {tlb_entry.ppn, v_addr.offset};
               state <= STATE_MEM_ACCESS;

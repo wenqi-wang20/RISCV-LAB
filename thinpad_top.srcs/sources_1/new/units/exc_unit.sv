@@ -234,8 +234,6 @@ always_ff @(posedge clk_i) begin
     stval_reg <= 0;
     stvec_reg <= 0;
     sscratch_reg <= 0;
-    sie_reg <= 0;
-    sip_reg <= 0;
     satp_reg <= 0;
   end else if (exc_en_i) begin
     // TODO: Delegation
@@ -246,7 +244,7 @@ always_ff @(posedge clk_i) begin
 
     // Save current state
     mstatus_reg.mpp <= privilege_i;
-    mstatus_reg.mpie <= csr_mstatus.mie;
+    mstatus_reg.mpie <= mstatus_reg.mie;
     mepc_reg <= {cur_pc_i[31:2], 2'b00};
 
     // Disable interrupts
@@ -273,7 +271,7 @@ always_ff @(posedge clk_i) begin
         mstatus_reg <= csr_wdata_i;
         // xPP: WARL, only holding levels lower than x
         if (csr_wdata_i[11:10] >= privilege_i) begin
-          mscratch_reg.mpp <= mscratch_reg.mpp;
+          mstatus_reg.mpp <= mstatus_reg.mpp;
         end
       end
       `CSR_MTVEC_ADDR: begin
@@ -314,7 +312,7 @@ always_ff @(posedge clk_i) begin
       `CSR_MCAUSE_ADDR: begin
         mcause_reg.interrupt <= csr_wdata_i[31];
         if (csr_wdata_i[30:0] < 16) begin
-          mcause_reg.exc_code <= csr_waddr_i[30:0];
+          mcause_reg.exc_code <= csr_wdata_i[30:0];
         end
       end
       `CSR_SATP_ADDR: begin

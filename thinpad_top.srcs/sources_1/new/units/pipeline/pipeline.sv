@@ -1,11 +1,12 @@
 `include "../../headers/alu.vh"
+`include "../../headers/exc.vh"
 module pipeline(
   input wire clk_i,
   input wire rst_i,
 
 
   /* ========== MMU signals ========== */
-  output wire [31:0] mmu_satp_o,
+  // output wire [31:0] mmu_satp_o,
 
   // MEM-stage: load/store data
   input  wire [31:0] mmu0_data_i,
@@ -19,6 +20,11 @@ module pipeline(
   output wire mmu0_fetch_en_o, // Fetch instruction
   output wire mmu0_flush_en_o, // Flush the TLB
 
+  input wire mmu0_load_pf_i,
+  input wire mmu0_store_pf_i,
+  input wire mmu0_fetch_pf_i,
+  input wire mmu0_invalid_addr_i,
+
   // IF-stage: instruction fetch
   input  wire [31:0] mmu1_data_i,
   input  wire        mmu1_ack_i,
@@ -31,6 +37,11 @@ module pipeline(
   output reg mmu1_fetch_en_o, // Fetch instruction
   output reg mmu1_flush_en_o, // Flush the TLB
 
+  input wire mmu1_load_pf_i,
+  input wire mmu1_store_pf_i,
+  input wire mmu1_fetch_pf_i,
+  input wire mmu1_invalid_addr_i,
+
   /* ========== regfile signals ========== */
   input  wire [31:0] rf_rdata_a_i,
   input  wire [31:0] rf_rdata_b_i,
@@ -38,16 +49,36 @@ module pipeline(
   output wire [ 4:0] rf_raddr_b_o,
   output wire [ 4:0] rf_waddr_o,
   output wire [31:0] rf_wdata_o,
-  output wire        rf_wen_o
+  output wire        rf_wen_o,
+
+  /* ========== exception unit signals ========== */
+  input  wire        exc_interrupt_i,
+  input  wire        exc_csr_rdata_i,
+  input  wire        exc_csr_invalid_r_i,
+  input  wire        exc_csr_invalid_w_i,
+  output wire [11:0] exc_csr_raddr_o,
+  output wire [11:0] exc_csr_waddr_o,
+  output wire [31:0] exc_csr_wdata_o,
+  output wire        exc_csr_wen_o,
+  output wire        exc_exc_en_o,
+  output wire        exc_exc_ret_o,
+  output wire [31:0] exc_cur_pc_o,
+  output wire [31:0] exc_sync_exc_code_o,
+  output wire [31:0] exc_mtval_o,
+  output wire [31:0] exc_privilege_o,
+
+  input  wire [31:0] exc_next_pc_i,
+  input  wire [ 1:0] exc_nxt_privilege_i
 );
 
   // basic mmu version
-  assign mmu_satp_o = 32'h0;
+  // assign mmu_satp_o = 32'h0;
 
 
   // IF signals
   logic [31:0] if_id_pc;
   logic [31:0] if_id_instr;
+  logic [`EXC_SIG_T_WIDTH-1:0] if_id_exc_sig;
 
   // ID signals
   logic [31:0] id_exe_pc;
@@ -59,11 +90,13 @@ module pipeline(
   logic [31:0] id_exe_imm;
   logic        id_exe_mem_en;
   logic        id_exe_mem_wen;
-  logic [ALU_OP_T_WIDTH-1:0] id_exe_alu_op;
+  logic [`ALU_OP_T_WIDTH-1:0] id_exe_alu_op;
   logic        id_exe_alu_a_sel;
   logic        id_exe_alu_b_sel;
   logic [ 4:0] id_exe_rf_waddr;
   logic        id_exe_rf_wen;
+  logic [`SYS_INSTR_T_WIDTH-1:0] id_exe_sys_instr;
+  logic [  `EXC_SIG_T_WIDTH-1:0] id_exe_exc_sig;
 
   // EXE signals
   logic [31:0] exe_mem_pc;
@@ -80,6 +113,9 @@ module pipeline(
   logic [31:0] exe_forward_alu_b;
   logic        exe_forward_alu_a_sel;
   logic        exe_forward_alu_b_sel;
+  logic [31:0] exe_mem_csr_rs1_data;
+  logic [`SYS_INSTR_T_WIDTH-1:0] exe_mem_sys_instr;
+  logic [  `EXC_SIG_T_WIDTH-1:0] exe_mem_exc_sig;
 
   // MEM signals
   logic [31:0] mem_wb_pc;
@@ -87,10 +123,6 @@ module pipeline(
   logic [31:0] mem_wb_rf_wdata;
   logic [ 4:0] mem_wb_rf_waddr;
   logic        mem_wb_rf_wen;
-
-  // Exception Unit signals
-  logic [31:0] exc_if_pc;
-  logic        exc_if_pc_sel;
 
   // pipeline controller signals
   logic        if_busy;
@@ -114,6 +146,9 @@ module pipeline(
   logic        mem_mem_wen;
 
   logic        mem_busy;
+  logic [`EXC_SIG_T_WIDTH-1:0] mem_exc_sig;
+
+  logic        privilege;
 
   logic [31:0] wb_rf_wdata;
   logic [ 4:0] wb_rf_waddr;
@@ -145,6 +180,10 @@ module pipeline(
     .mmu_store_en_o(mmu1_store_en_o),
     .mmu_fetch_en_o(mmu1_fetch_en_o),
     .mmu_flush_en_o(mmu1_flush_en_o),
+    .mmu_load_pf_i(mmu1_load_pf_i),
+    .mmu_store_pf_i(mmu1_store_pf_i),
+    .mmu_fetch_pf_i(mmu1_fetch_pf_i),
+    .mmu_invalid_addr_i(mmu1_invalid_addr_i),
 
     // stall signals and flush signals
     .stall_i(if_stall),
@@ -155,6 +194,7 @@ module pipeline(
     // signals to ID stage
     .id_pc_o(if_id_pc),
     .id_instr_o(if_id_instr),
+    .id_exc_sig_o(if_id_exc_sig),
 
     // signals to harzard handler
     .if_busy_o(if_busy)
@@ -168,6 +208,7 @@ module pipeline(
     // signals from IF stage
     .id_pc_i(if_id_pc),
     .id_instr_i(if_id_instr),
+    .id_exc_sig_i(if_id_exc_sig),
 
     // stall signals and flush signals
     .stall_i(id_stall),
@@ -194,6 +235,8 @@ module pipeline(
     .exe_alu_b_sel_o(id_exe_alu_b_sel),  // 0: rs2, 1: imm
     .exe_rf_waddr_o(id_exe_rf_waddr),
     .exe_rf_wen_o(id_exe_rf_wen),
+    .exe_sys_instr_o(id_exe_sys_instr),
+    .exe_exc_sig_o(id_exe_exc_sig),
 
     // signals to harzard handler
     .id_rf_raddr_a_o(id_rf_raddr_a),
@@ -220,6 +263,8 @@ module pipeline(
     .exe_alu_b_sel_i(id_exe_alu_b_sel),
     .exe_rf_waddr_i(id_exe_rf_waddr),
     .exe_rf_wen_i(id_exe_rf_wen),
+    .exe_sys_instr_i(id_exe_sys_instr),
+    .exe_exc_sig_i(id_exe_exc_sig),
 
     // stall signals and flush signals
     .stall_i(exe_stall),
@@ -237,6 +282,9 @@ module pipeline(
     .mem_alu_result_o(exe_mem_alu_result),
     .mem_rf_waddr_o(exe_mem_rf_waddr),
     .mem_rf_wen_o(exe_mem_rf_wen),
+    .mem_csr_rs1_data_o(exe_mem_csr_rs1_data),
+    .mem_sys_instr_o(exe_mem_sys_instr),
+    .mem_exc_sig_o(exe_mem_exc_sig),
 
     // signals from forward unit
     .exe_forward_alu_a_i(exe_forward_alu_a),
@@ -249,7 +297,10 @@ module pipeline(
     .exe_rf_raddr_b_o(exe_rf_raddr_b),
     .exe_mem_en_o(exe_mem_en),
     .exe_mem_wen_o(exe_mem_wen),
-    .exe_rf_waddr_o(exe_rf_waddr)
+    .exe_rf_waddr_o(exe_rf_waddr),
+
+    // interrupt signals
+    .interrupt_i(exc_interrupt_i)
     );
 
   /* ========== MEM stage ========== */
@@ -267,6 +318,10 @@ module pipeline(
     .mmu_store_en_o(mmu0_store_en_o),
     .mmu_fetch_en_o(mmu0_fetch_en_o),
     .mmu_flush_en_o(mmu0_flush_en_o),
+    .mmu_load_pf_i(mmu0_load_pf_i),
+    .mmu_store_pf_i(mmu0_store_pf_i),
+    .mmu_fetch_pf_i(mmu0_fetch_pf_i),
+    .mmu_invalid_addr_i(mmu0_invalid_addr_i),
 
     // signals from EXE stage
     .mem_pc_i(exe_mem_pc),
@@ -277,10 +332,16 @@ module pipeline(
     .mem_alu_result_i(exe_mem_alu_result),
     .mem_rf_waddr_i(exe_mem_rf_waddr),
     .mem_rf_wen_i(exe_mem_rf_wen),
+    .mem_csr_rs1_data_i(exe_mem_csr_rs1_data),
+    .mem_sys_instr_i(exe_mem_sys_instr),
+    .mem_exc_sig_i(exe_mem_exc_sig),
 
     // stall signals and flush signals
     .stall_i(mem_stall),
     .flush_i(mem_flush),
+
+    // signals from CPU
+    .privilege_i(privilege),
 
     // signals to WB(write back) stage
     .wb_pc_o(mem_wb_pc),
@@ -297,7 +358,19 @@ module pipeline(
     .mem_mem_wen_o(mem_mem_wen),
 
     // signals to hazard detection unit
-    .mem_busy_o(mem_busy)
+    .mem_busy_o(mem_busy),
+
+    // signals from/to exception unit
+    .csr_rdata_i(exc_csr_rdata_i),
+    .csr_invalid_r_i(exc_csr_invalid_r_i),
+    .csr_invalid_w_i(exc_csr_invalid_w_i),
+    .csr_raddr_o(exc_csr_raddr_o),
+    .csr_waddr_o(exc_csr_waddr_o),
+    .csr_wdata_o(exc_csr_wdata_o),
+    .csr_wen_o(exc_csr_wen_o),
+
+  // signals to exception handler
+    .exc_sig_o(mem_exc_sig)
   );
 
   /* ========== WB(write back) stage ========== */
@@ -333,17 +406,13 @@ module pipeline(
     .rst_i(rst_i),
 
     // signals from IF stage
-    .if_busy_i(if_busy),
+    .if_if_busy_i(if_busy),
     .if_pc_o(if_pc),
     .if_pc_sel_o(if_pc_sel),
 
     // pc signals from EXE stage
-    .exe_pc_sel_i(exe_if_pc_sel),  // 0: pc+4, 1: exe_pc
     .exe_pc_i(exe_if_pc),
-
-    // pc signals from exception unit
-    .exc_pc_sel_i(exc_if_pc_sel),  // 0: pc+4, 1: exc_pc
-    .exc_pc_i(exc_if_pc),
+    .exe_pc_sel_i(exe_if_pc_sel),  // 0: pc+4, 1: exe_pc
 
     // signals from ID stage
     .id_rf_raddr_a_i(id_rf_raddr_a),
@@ -364,7 +433,8 @@ module pipeline(
     .mem_mem_wen_i(mem_mem_wen),
 
     // signals from MEM stage
-    .mem_busy_i(mem_busy),
+    .mem_mem_busy_i(mem_busy),
+    .mem_exc_sig_i(mem_exc_sig),
 
     // signals from MEM/WB pipeline registers
     .wb_rf_wdata_i(wb_rf_wdata),
@@ -387,6 +457,19 @@ module pipeline(
     .id_flush_o(id_flush),
     .exe_flush_o(exe_flush),
     .mem_flush_o(mem_flush),
-    .wb_flush_o(wb_flush)
+    .wb_flush_o(wb_flush),
+
+    // signals to exception unit
+    .exc_exc_en_o(exc_exc_en_o),
+    .exc_exc_ret_o(exc_exc_ret_o),
+    .exc_cur_pc_o(exc_cur_pc_o),
+    .exc_sync_exc_code_o(exc_sync_exc_code_o),
+    .exc_mtval_o(exc_mtval_o),
+    .privilege_o(privilege),
+
+    // pc signals from exception unit
+    .exc_pc_i(exc_next_pc_i),
+    .exc_nxt_privilege_i(exc_nxt_privilege_i)
   );
+  assign exc_privilege_o = privilege;
 endmodule

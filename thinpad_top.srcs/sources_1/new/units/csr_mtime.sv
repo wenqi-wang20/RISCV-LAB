@@ -3,11 +3,9 @@
 
 `include "../headers/csr.vh"
 
-module (
+module csr_mtime(
   input wire clk_i,
   input wire rst_i,
-
-  // TODO
 
   // Wishbone slave
   input wire wb_cyc_i,
@@ -19,14 +17,16 @@ module (
   input wire [ 3:0] wb_sel_i,
   input wire wb_we_i,
 
-  // machine interrupt signals to the CPU
-  output wire mit_occur_o
+  // machine timer interrupt signals to the CPU
+  output wire mti_occur_o,
+  output wire mti_occur_n_o
 );
 
 csr_mtime_t mtime_reg;
 csr_mtimecmp_t mtimecmp_reg;
 
-assign mit_occur_o = (mtime_reg >= mtimecmp_reg);
+assign mti_occur_o = (mtime_reg >= mtimecmp_reg);
+assign mti_occur_n_o = ~mti_occur_o;
 
 // ==== Begin read hardwire ====
 always_comb begin
@@ -89,7 +89,7 @@ always_ff @(posedge clk_i) begin
           end else begin
             mtime_reg <= mtime_reg + 1;
           end
-          ack_o <= 1'b1;
+          wb_ack_o <= 1'b1;
           state <= STATE_DONE;
         end else begin
           mtime_reg <= mtime_reg + 1;
@@ -97,7 +97,7 @@ always_ff @(posedge clk_i) begin
       end
 
       STATE_DONE: begin
-        ack_o <= 1'b0;
+        wb_ack_o <= 1'b0;
         state <= STATE_IDLE;
         mtime_reg <= mtime_reg + 1;
       end

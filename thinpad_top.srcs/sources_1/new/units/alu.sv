@@ -2,7 +2,7 @@
 module alu(
   input wire  [31:0] a,
   input wire  [31:0] b,
-  input wire  [ALU_OP_T_WIDTH-1:0] op,
+  input wire  [`ALU_OP_T_WIDTH-1:0] op,
   output wire [31:0] result
 );
   logic [31:0] add_result;
