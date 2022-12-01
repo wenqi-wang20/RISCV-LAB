@@ -320,7 +320,7 @@ module thinpad_top (
   logic        rf_wen;
 
   logic        exc_interrupt;
-  logic        exc_csr_rdata;
+  logic [31:0] exc_csr_rdata;
   logic        exc_csr_invalid_r;
   logic        exc_csr_invalid_w;
   logic [11:0] exc_csr_raddr;
@@ -330,9 +330,9 @@ module thinpad_top (
   logic        exc_exc_en;
   logic        exc_exc_ret;
   logic [31:0] exc_cur_pc;
-  logic [31:0] exc_sync_exc_code;
+  logic [30:0] exc_sync_exc_code;
   logic [31:0] exc_mtval;
-  logic [31:0] exc_privilege;
+  logic [ 1:0] exc_privilege;
 
   logic [31:0] exc_next_pc;
   logic [ 1:0] exc_nxt_privilege;
@@ -545,14 +545,13 @@ module thinpad_top (
     .exc_en_i(exc_exc_en),
     .exc_ret_i(exc_exc_ret),
     .interrupt_occur_o(exc_interrupt),
-    .priv_privilege_o(exc_privilege),
  
     .cur_pc_i(exc_cur_pc),
     .sync_exc_code_i(exc_sync_exc_code),
     .mtval_i(exc_mtval),
     .next_pc_o(exc_next_pc),
 
-    .privilege_i(exc_nxt_privilege),
+    .privilege_i(exc_privilege),
     .nxt_privilege_o(exc_nxt_privilege),
  
     .satp_o(mmu_satp),

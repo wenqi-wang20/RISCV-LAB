@@ -36,7 +36,7 @@ module mem_stage(
   input wire        flush_i,
 
   // signals from CPU
-  input wire        privilege_i,
+  input wire [ 1:0]  privilege_i,
 
   // signals to WB(write back) stage
   output reg [31:0] wb_pc_o,

@@ -67,7 +67,7 @@ module pipeline_controller(
   output reg [31:0] exc_mtval_o,
 
   // signals to MEM stage and exception unit
-  output reg [ 2:0] privilege_o,
+  output reg [ 1:0] privilege_o,
 
   // pc signals from exception unit
   input wire [31:0] exc_pc_i,

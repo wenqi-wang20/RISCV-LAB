@@ -63,9 +63,9 @@ module pipeline(
   output wire        exc_exc_en_o,
   output wire        exc_exc_ret_o,
   output wire [31:0] exc_cur_pc_o,
-  output wire [31:0] exc_sync_exc_code_o,
+  output wire [30:0] exc_sync_exc_code_o,
   output wire [31:0] exc_mtval_o,
-  output wire [31:0] exc_privilege_o,
+  output wire [ 1:0] exc_privilege_o,
 
   input  wire [31:0] exc_next_pc_i,
   input  wire [ 1:0] exc_nxt_privilege_i
@@ -148,7 +148,7 @@ module pipeline(
   logic        mem_busy;
   logic [`EXC_SIG_T_WIDTH-1:0] mem_exc_sig;
 
-  logic        privilege;
+  logic [ 1:0] privilege;
 
   logic [31:0] wb_rf_wdata;
   logic [ 4:0] wb_rf_waddr;

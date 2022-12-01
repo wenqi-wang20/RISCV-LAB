@@ -12,7 +12,6 @@ module exc_unit(
   input wire   exc_en_i,
   input wire   exc_ret_i,
   output logic interrupt_occur_o,
-  output logic priv_privilege_o,
  
   input wire   [31:0] cur_pc_i,
   input wire   [30:0] sync_exc_code_i,
@@ -20,7 +19,7 @@ module exc_unit(
   output logic [31:0] next_pc_o,
 
   input wire   [ 1:0] privilege_i,
-  output reg   [ 1:0] nxt_privilege_o,
+  output logic [ 1:0] nxt_privilege_o,
  
   output wire  [31:0] satp_o,
   input wire          mtip_set_en_i,
@@ -82,26 +81,22 @@ always_comb begin
 end
 
 // ======== Decoding ========
-wire [1:0] r_access;
 wire [1:0] r_privilege;
 wire [1:0] w_access;
 wire [1:0] w_privilege;
-assign r_access = csr_raddr_i[11:10];
 assign r_privilege = csr_raddr_i[9:8];
 assign w_access = csr_waddr_i[11:10];
 assign w_privilege = csr_waddr_i[9:8];
 
 // == Privilege and accessbility checking ==
 always_comb begin
-  invalid_r_o = ~r_access | (privilege_i < r_privilege);
-  invalid_w_o = ~w_access | (privilege_i < w_privilege);
+  invalid_r_o = (privilege_i < r_privilege);
+  invalid_w_o = (w_access == 2'b11) | (privilege_i < w_privilege);
 end
 
 // ===== Hard-wired read registers =====
 // Expose satp for mem access
 assign satp_o = satp_reg;
-// Output the privilege level prior to the exception
-assign priv_privilege_o = mstatus_reg.mpp;
 
 // ====== Read logic ======
 always_comb begin
@@ -212,6 +207,16 @@ wire deleg_sync_exc;
 assign deleg_interrupt = mideleg_reg[exc_code];
 assign deleg_sync_exc = medeleg_reg[exc_code];
 
+always_comb begin
+  nxt_privilege_o = 0;
+  if (exc_en_i) begin
+    nxt_privilege_o = `PRIVILEGE_M;
+  end
+  else if (exc_ret_i) begin
+    nxt_privilege_o = mstatus_reg.mpp;
+  end
+end
+
 // ====== Write logic ======
 always_ff @(posedge clk_i) begin
   if (rst_i) begin
@@ -260,7 +265,6 @@ always_ff @(posedge clk_i) begin
     mstatus_reg.mie <= mstatus_reg.mpie;
     mstatus_reg.mpie <= 1'b1;
     mstatus_reg.mpp <= `PRIVILEGE_U;
-    nxt_privilege_o <= mstatus_reg.mpp;
     
   end else if (mtip_set_en_i | mtip_clear_en_i) begin
     mip_reg.mtip <= mtip_set_en_i;
