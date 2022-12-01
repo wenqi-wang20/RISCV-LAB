@@ -20,8 +20,8 @@ module flash_controller #(
     input wire wb_we_i,
 
     // flash interface
-    output reg [FLASH_DATA_WIDTH-1:0] flash_a_o,
-    inout wire [FLASH_ADDR_WIDTH-1:0] flash_d,
+    output reg [FLASH_ADDR_WIDTH-1:0] flash_a_o,
+    inout wire [15:0] flash_d,
     output reg flash_rp_o,
     output reg flash_ce_o,
     output reg flash_oe_o
@@ -69,15 +69,22 @@ module flash_controller #(
 
     // 单字节读取，写入，不做地址对齐
     wire [FLASH_ADDR_WIDTH-1:0] flash_addr;
+    wire [1:0] addr_sel;
     assign flash_addr = wb_adr_i[FLASH_ADDR_WIDTH-1:0];
+    assign addr_sel = wb_adr_i[1:0];
 
-    wire [WISHBONE_DATA_WIDTH-1:0] flash_data_i_comb;
-    reg [FLASH_DATA_WIDTH-1:0] flash_data_o_comb;
+
+    wire [WISHBONE_DATA_WIDTH-1:0] wb_data_tmp;
+    wire [15:0] flash_data_i_comb;
+    wire [7:0] flash_data_i_low;
+    reg [15:0] flash_data_o_comb;
     reg flash_data_t_comb;
 
     assign flash_d = flash_data_t_comb ? 8'bz : flash_data_o_comb;
     assign flash_data_i_comb = flash_d;
+    assign flash_data_i_low = flash_data_i_comb[7:0];
     assign flash_data_t_comb = 1;
+    assign wb_data_tmp = $signed(flash_data_i_low)<<8*(addr_sel);
 
 
     // 数据转移
@@ -127,7 +134,7 @@ module flash_controller #(
                     if (wb_we_i) begin       // write
                         // pass
                     end else begin          // read
-                        wb_dat_o <= flash_data_i_comb;
+                        wb_dat_o <= wb_data_tmp;
                     end
                     wb_ack_o <= 1;
                 end
