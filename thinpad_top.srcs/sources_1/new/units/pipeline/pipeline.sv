@@ -140,7 +140,7 @@ module pipeline(
   logic        exe_mem_wen;
   logic [ 4:0] exe_rf_waddr;
 
-  logic [31:0] mem_alu_result;
+  logic [31:0] mem_rf_wdata;
   logic [ 4:0] mem_rf_waddr;
   logic        mem_rf_wen;
   logic        mem_mem_en;
@@ -354,7 +354,7 @@ module pipeline(
     .wb_rf_wen_o(mem_wb_rf_wen),
 
     // signals to forward unit
-    .mem_alu_result_o(mem_alu_result),
+    .mem_rf_wdata_o(mem_rf_wdata),
     .mem_rf_waddr_o(mem_rf_waddr),
     .mem_rf_wen_o(mem_rf_wen),
     .mem_mem_en_o(mem_mem_en),
@@ -429,7 +429,7 @@ module pipeline(
     .exe_rf_waddr_i(exe_rf_waddr),
 
     // signals from EXE/MEM pipeline registers
-    .mem_alu_result_i(mem_alu_result),
+    .mem_rf_wdata_i(mem_rf_wdata),
     .mem_rf_waddr_i(mem_rf_waddr),
     .mem_rf_wen_i(mem_rf_wen),
     .mem_mem_en_i(mem_mem_en),

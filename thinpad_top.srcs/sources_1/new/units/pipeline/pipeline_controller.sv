@@ -26,7 +26,7 @@ module pipeline_controller(
   input wire [ 4:0] exe_rf_waddr_i,
 
   // signals from EXE/MEM pipeline registers
-  input wire [31:0] mem_alu_result_i,
+  input wire [31:0] mem_rf_wdata_i,
   input wire [ 4:0] mem_rf_waddr_i,
   input wire        mem_rf_wen_i,
   input wire        mem_mem_en_i,
@@ -127,10 +127,10 @@ module pipeline_controller(
     end
     if (mem_forward_enable) begin
       if (mem_rf_waddr_i == exe_rf_raddr_a_i) begin
-        exe_forward_alu_a_o = mem_alu_result_i;
+        exe_forward_alu_a_o = mem_rf_wdata_i; // FIXME
         exe_forward_alu_a_sel_o = 1'b1;
       end else if (mem_rf_waddr_i == exe_rf_raddr_b_i) begin
-        exe_forward_alu_b_o = mem_alu_result_i;
+        exe_forward_alu_b_o = mem_rf_wdata_i;
         exe_forward_alu_b_sel_o = 1'b1;
       end
     end

@@ -47,7 +47,7 @@ module mem_stage(
   output reg        wb_rf_wen_o,
 
   // signals to forward unit
-  output reg [31:0] mem_alu_result_o,
+  output reg [31:0] mem_rf_wdata_o,
   output reg [ 4:0] mem_rf_waddr_o,
   output reg        mem_rf_wen_o,
   output reg        mem_mem_en_o,
@@ -315,17 +315,17 @@ module mem_stage(
       SYS_INSTR_CSRRW: begin
         csr_wdata_o = csr_rs1_data;
         csr_wen_o = (!exc_sig.exc_occur) && (csr_rs1_addr != 5'b0_0000) && (!stall_i);
-        csr_rf_wdata_sel = ~exc_sig.exc_occur;
+        csr_rf_wdata_sel = 1'b1;
       end
       SYS_INSTR_CSRRS: begin
         csr_wdata_o = csr_rdata_i | csr_rs1_data;
         csr_wen_o = ~exc_sig.exc_occur && (csr_rs1_addr != 5'b0_0000) && (!stall_i);
-        csr_rf_wdata_sel = ~exc_sig.exc_occur;
+        csr_rf_wdata_sel = 1'b1;
       end
       SYS_INSTR_CSRRC: begin
         csr_wdata_o = csr_rdata_i & ~csr_rs1_data;
         csr_wen_o = ~exc_sig.exc_occur && (csr_rs1_addr != 5'b0_0000) && (!stall_i);
-        csr_rf_wdata_sel = ~exc_sig.exc_occur;
+        csr_rf_wdata_sel = 1'b1;
       end
       default: begin
         csr_wdata_o = 32'h0000_0000;
@@ -375,7 +375,7 @@ module mem_stage(
     wb_instr_o = instr;
     wb_rf_wdata_o = rf_wdata;
     wb_rf_waddr_o = rf_waddr;
-    wb_rf_wen_o = rf_wen | csr_rf_wdata_sel;
+    wb_rf_wen_o = rf_wen;
 
     // mmu signals
     mmu_v_addr_o = alu_result;
@@ -412,7 +412,7 @@ module mem_stage(
     mmu_data_o = mem_wdata;
 
     // signals to forward unit
-    mem_alu_result_o = alu_result;
+    mem_rf_wdata_o = rf_wdata;
     mem_rf_waddr_o = rf_waddr;
     mem_rf_wen_o = rf_wen;
     mem_mem_en_o = mem_en;

@@ -345,6 +345,7 @@ module thinpad_top (
 
     // Content of satp register, should persist during request
     .satp_i(mmu_satp),
+    .privilege_i(exc_privilege),
 
     // Data read and write
     .v_addr_i(mmu_v_addr),

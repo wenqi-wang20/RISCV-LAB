@@ -2,6 +2,7 @@
 `timescale 1ns / 1ps
 
 `include "../headers/csr.vh"
+`include "../headers/privilege.vh"
 
 `define PAGE_SIZE       4096
 `define PAGE_SIZE_SHIFT 12
@@ -48,6 +49,8 @@
 module mmu (
   input wire clk_i,
   input wire rst_i,
+
+  input wire [1:0] privilege_i,
 
   // Content of satp register, should persist during request
   input wire [31:0] satp_i,
@@ -175,21 +178,31 @@ module mmu (
   wire r_en, w_en;
   assign r_en = load_en_i | fetch_en_i;
   assign w_en = store_en_i;
-  wire direct, valid;
-  assign direct = satp.mode == 1'b0 || v_addr < 32'h8000_0000 || v_addr > 32'h807F_FFFF;
-  assign valid = (v_addr >= 32'h8000_0000 && v_addr <= 32'h807F_FFFF) ||
-                 (v_addr >= 32'h1000_0000 && v_addr <= 32'h1000_FFFF) ||
-                 (v_addr >= 32'h200_0000 && v_addr <= 32'h200_FFFF);
-
+  wire direct, valid, direct_valid, virtual_valid;
+  wire is_direct_addr;
+  assign is_direct_addr = (v_addr >= 32'h200_0000 && v_addr <= 32'h200_FFFF) ||
+                          (v_addr >= 32'h1000_0000 && v_addr <= 32'h1000_FFFF) ||
+                          v_addr == `CSR_MTIMECMP_MEM_ADDR || v_addr == `CSR_MTIMECMP_MEM_ADDR+4 ||
+                          v_addr == `CSR_MTIME_MEM_ADDR || v_addr == `CSR_MTIME_MEM_ADDR+4 ||
+                          (32'h8040_0000 <= v_addr && v_addr <= 32'h807F_FFFF) ||
+                          (32'h8000_0000 <= v_addr && v_addr <= 32'h8000_0FFF);
+  assign virtual_valid = (32'h0 <= v_addr && v_addr <= 32'h2F_FFFF) ||
+                         (32'h7FC1_0000 <= v_addr && v_addr <= 32'h8000_1FFF) ||
+                         (32'h8010_0000 <= v_addr && v_addr <= 32'h8010_0FFF);
+  assign direct_valid = is_direct_addr || (32'h8000_0000 <= v_addr && v_addr <= 32'h803F_FFFF);
+  assign valid = (satp.mode == 1'b0 || privilege_i == `PRIVILEGE_M) ?
+                 direct_valid : (virtual_valid || is_direct_addr);
   assign invalid_addr_o = ~valid;
 
+  assign direct = satp.mode == 1'b0 || privilege_i == `PRIVILEGE_M || is_direct_addr;
+
   // Translation related signals
-  wire [31:0] a;
+  wire [33:0] a;
   wire [31:0] pte_addr;
   reg         cur_level; // Current level
 
-  assign a = cur_level == 1'b1 ? satp.ppn << `PAGE_SIZE_SHIFT
-                               : {read_pte.ppn_1, read_pte.ppn_0} << `PAGE_SIZE_SHIFT;
+  assign a = cur_level == 1'b1 ? {12'b0, satp.ppn} << `PAGE_SIZE_SHIFT
+                               : {12'b0, read_pte.ppn_1, read_pte.ppn_0} << `PAGE_SIZE_SHIFT;
   assign pte_addr = cur_level == 1'b1 ? a + (v_addr.vpn_1 << `PTE_SIZE_SHIFT)
                                       : a + (v_addr.vpn_0 << `PTE_SIZE_SHIFT);
 
@@ -267,9 +280,9 @@ module mmu (
             // TODO: Privilege mode checkings
             if (read_pte.r | read_pte.x) begin
               // Leaf PTE
-              if ((load_pf_o & ~read_pte.r) |
-                  (store_pf_o & ~read_pte.w) |
-                  (fetch_pf_o & ~read_pte.x)) begin
+              if ((load_en_i & ~read_pte.r) |
+                  (store_en_i & ~read_pte.w) |
+                  (fetch_en_i & ~read_pte.x)) begin
                 // Illegal memory access, raise page fault
                 pf_occur <= 1'b1;
                 ack_o <= 1'b1;

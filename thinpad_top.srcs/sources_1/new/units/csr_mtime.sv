@@ -61,6 +61,7 @@ always_ff @(posedge clk_i) begin
     mtime_reg <= 64'b0;
     mtimecmp_reg <= 64'b0;
     state <= STATE_IDLE;
+    wb_ack_o <= 1'b0;
   end else begin
     case (state)
       STATE_IDLE: begin
