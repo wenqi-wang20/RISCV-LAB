@@ -55,6 +55,7 @@ module mem_stage(
 
   // signals to hazard detection unit
   output reg        mem_busy_o,
+  output reg        mem_tlb_flush_o,
 
   // signals from/to exception unit
   input wire [31:0] csr_rdata_i,
@@ -108,6 +109,7 @@ module mem_stage(
   logic        addr_misaligned;
   logic [11:0] csr_addr;
   logic        csr_rf_wdata_sel;
+  logic        tlb_flush_en;
 
   assign funct3   = instr[14:12];
   assign opcode   = instr[ 6: 0];
@@ -262,7 +264,8 @@ module mem_stage(
   always_comb begin
     mem_enable_exact = mem_en & ~exc_sig;
 
-    // ECALL, EBREAK, MRET
+    // ECALL, EBREAK, MRET, SRET, URET, SFENCE.VMA
+    tlb_flush_en = (sys_instr == SYS_INSTR_SFENCE_VMA) && (!exc_sig.exc_occur);
     exc_sig_sys_gen = `EXC_SIG_NULL;
     if (!exc_sig.exc_occur) begin
       case (sys_instr)
@@ -293,7 +296,7 @@ module mem_stage(
           exc_sig_sys_gen.sync_exc_code = `EXC_BREAKPOINT;
           exc_sig_sys_gen.mtval = 32'h0;
         end
-        SYS_INSTR_MRET: begin
+        SYS_INSTR_MRET, SYS_INSTR_SRET, SYS_INSTR_URET: begin
           exc_sig_sys_gen.exc_occur = 1'b0;
           exc_sig_sys_gen.exc_ret = 1'b1;
           exc_sig_sys_gen.cur_pc = pc;
@@ -408,7 +411,7 @@ module mem_stage(
     mmu_load_en_o  = mem_en & ~mem_wen & ~mem_state & ~addr_misaligned;
     mmu_store_en_o = mem_en &  mem_wen & ~mem_state & ~addr_misaligned;
     mmu_fetch_en_o = 1'b0;
-    mmu_flush_en_o = 1'b0;
+    mmu_flush_en_o = tlb_flush_en;
     mmu_data_o = mem_wdata;
 
     // signals to forward unit
@@ -420,6 +423,7 @@ module mem_stage(
 
     // signals to hazard detection unit
     mem_busy_o = mem_busy;
+    mem_tlb_flush_o = tlb_flush_en;
   end
 
 endmodule

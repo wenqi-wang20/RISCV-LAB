@@ -21,6 +21,11 @@ module if_stage(
   // stall signals and flush signals
   input wire        stall_i,
   input wire        flush_i,
+
+  // tlb flush signals
+  input wire        tlb_flush_i,
+
+  // pc mux signals
   input wire        pc_sel_i,
   input wire [31:0] pc_i,
 
@@ -73,6 +78,9 @@ module if_stage(
         exc_sig_gen.cur_pc <= pc;
         exc_sig_gen.sync_exc_code <= `EXC_INSTRUCTION_ADDRESS_MISALIGNED;
         exc_sig_gen.mtval <= pc;
+      end else if (tlb_flush_i) begin
+        exc_sig_gen <= `EXC_SIG_NULL;
+        instr <= 32'h0000_0013;  // nop for tlb flush
       end else if (mmu_ack_i) begin
         instr <= mmu_data_i;
         exc_sig_gen <= `EXC_SIG_NULL;
@@ -83,7 +91,7 @@ module if_stage(
   always_comb begin
     case (if_state)
       IF_ACCESS: begin
-        if_next_state = (mmu_ack_i || mmu_invalid_addr_i || mmu_fetch_pf_i || pc_misaligned) ? IF_DONE : IF_ACCESS;
+        if_next_state = (mmu_ack_i || mmu_invalid_addr_i || mmu_fetch_pf_i || pc_misaligned || tlb_flush_i) ? IF_DONE : IF_ACCESS;
       end
       IF_DONE: begin
         if_next_state = stall_i ? IF_DONE : IF_ACCESS;
@@ -119,7 +127,7 @@ module if_stage(
     mmu_data_o = 32'h0000_0000;
     mmu_load_en_o = 1'b0;
     mmu_store_en_o = 1'b0;
-    mmu_fetch_en_o = ~if_state & ~mmu_invalid_addr_i & ~pc_misaligned;
+    mmu_fetch_en_o = ~if_state & ~mmu_invalid_addr_i & ~pc_misaligned & ~tlb_flush_i;
     mmu_flush_en_o = 1'b0;
 
     // if busy signal

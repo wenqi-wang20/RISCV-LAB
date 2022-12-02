@@ -252,35 +252,64 @@ module instr_decoder(
       // TODO: add support for csr illegal instruction exception check
       7'b111_0011: begin // system
         case (funct3)
-          3'b000: begin  // ecall, ebreak, mret
-            case (rs2)
-              5'b0_0000: begin  // ecall
-                instr_legal_o = (funct7 == 7'b000_0000 && rs1 == 5'b0_0000 && rd == 5'b0_0000) ? 1'b1 : 1'b0;
-                sys_instr_o = SYS_INSTR_ECALL;
-              end
-              5'b0_0001: begin  // ebreak
-                instr_legal_o = (funct7 == 7'b000_0000 && rs1 == 5'b0_0000 && rd == 5'b0_0000) ? 1'b1 : 1'b0;
-                sys_instr_o = SYS_INSTR_EBREAK;
-              end
-              5'b0_0010: begin  // mret, sret, uret
-                case (funct7)
-                  7'b001_1000: begin  // mret
-                    instr_legal_o = (privilege_i == `PRIVILEGE_M  && rs1 == 5'b0_0000 && rd == 5'b0_0000) ? 1'b1 : 1'b0;
-                    sys_instr_o = SYS_INSTR_MRET;
+          3'b000: begin  // ecall, ebreak, mret, sret, uret, wfi, sfence.vma
+            case (funct7)
+              7'b000_0000: begin  // ecall, ebreak, uret
+                case (rs2)
+                  5'b0_0000: begin  // ecall
+                    instr_legal_o = (rs1 == 5'b0_0000 && rd == 5'b0_0000) ? 1'b1 : 1'b0;
+                    sys_instr_o = SYS_INSTR_ECALL;
                   end
-                  7'b000_1000: begin  // sret
-                    instr_legal_o = 1'b0;
-                    sys_instr_o = SYS_INSTR_NOP;
+                  5'b0_0001: begin  // ebreak
+                    instr_legal_o = (rs1 == 5'b0_0000 && rd == 5'b0_0000) ? 1'b1 : 1'b0;
+                    sys_instr_o = SYS_INSTR_EBREAK;
                   end
-                  7'b000_0000: begin  // uret
+                  5'b0_0010: begin  // uret
                     instr_legal_o = 1'b0;
-                    sys_instr_o = SYS_INSTR_NOP;
+                    // TODO: add support for uret
+                    // instr_legal_o = (privilege_i == `PRIVILEGE_U && rs1 == 5'b0_0000 && rd == 5'b0_0000) ? 1'b1 : 1'b0;
+                    sys_instr_o = SYS_INSTR_URET;
                   end
                   default: begin
                     instr_legal_o = 1'b0;
                     sys_instr_o = SYS_INSTR_NOP;
                   end
                 endcase
+              end
+              7'b000_1000: begin  // sret, wfi
+                case (rs2)
+                  5'b0_0010: begin  // sret
+                    instr_legal_o = (privilege_i >= `PRIVILEGE_S && rs1 == 5'b0_0000 && rd == 5'b0_0000) ? 1'b1 : 1'b0;
+                    sys_instr_o = SYS_INSTR_SRET;
+                  end
+                  5'b0_0101: begin  // wfi
+                    instr_legal_o = 1'b0;
+                    sys_instr_o = SYS_INSTR_NOP;
+                    // TODO: add support for wfi
+                    // instr_legal_o = (rs1 == 5'b0_0000 && rd == 5'b0_0000) ? 1'b1 : 1'b0;
+                    // sys_instr_o = SYS_INSTR_WFI;
+                  end
+                  default: begin
+                    instr_legal_o = 1'b0;
+                    sys_instr_o = SYS_INSTR_NOP;
+                  end
+                endcase
+              end
+              7'b001_1000: begin  // mret
+                case (rs2)
+                  5'b0_0010: begin  // mret
+                    instr_legal_o = (privilege_i == `PRIVILEGE_M && rs1 == 5'b0_0000 && rd == 5'b0_0000) ? 1'b1 : 1'b0;
+                    sys_instr_o = SYS_INSTR_MRET;
+                  end
+                  default: begin
+                    instr_legal_o = 1'b0;
+                    sys_instr_o = SYS_INSTR_NOP;
+                  end
+                endcase
+              end
+              7'b000_1001: begin  // sfence.vma
+                instr_legal_o = (rd == 5'b0_0000) ? 1'b1 : 1'b0;
+                sys_instr_o = SYS_INSTR_SFENCE_VMA;
               end
               default: begin
                 instr_legal_o = 1'b0;
@@ -386,7 +415,7 @@ module instr_decoder(
       end
       7'b111_0011: begin // system
         case (funct3)
-          3'b000: begin  // ecall, ebreak, mret
+          3'b000: begin  // ecall, ebreak, mret, sret, uret, wfi, sfence.vma
             rf_wen_o = 1'b0;
           end
           3'b001: begin  // csrrw

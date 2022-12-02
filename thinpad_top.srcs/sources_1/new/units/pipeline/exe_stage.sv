@@ -30,6 +30,7 @@ module exe_stage(
   // signals to pipeline controller (pc mux)
   output reg [31:0] if_pc_o,
   output reg        if_pc_sel_o,  // 0: pc+4, 1: exe_pc
+  output reg [31:0] exe_pc_o,
 
   // signals to MEM stage
   output reg [31:0] mem_pc_o,
@@ -220,6 +221,9 @@ module exe_stage(
       if_pc_o = alu_result & 32'hfffffffe;
       if_pc_sel_o = 1'b1;
     end
+
+    // tbl flush
+    exe_pc_o = pc;
 
     // exception signals generation
     if (interrupt_i) begin

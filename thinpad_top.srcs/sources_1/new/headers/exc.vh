@@ -3,7 +3,7 @@
 
 // ===== System instruction type =====
 
-`define SYS_INSTR_T_WIDTH 3
+`define SYS_INSTR_T_WIDTH 4
 
 typedef enum logic [`SYS_INSTR_T_WIDTH-1:0] {
   SYS_INSTR_CSRRW,
@@ -12,6 +12,9 @@ typedef enum logic [`SYS_INSTR_T_WIDTH-1:0] {
   SYS_INSTR_ECALL,
   SYS_INSTR_EBREAK,
   SYS_INSTR_MRET,
+  SYS_INSTR_SRET,
+  SYS_INSTR_URET,
+  SYS_INSTR_SFENCE_VMA,
   SYS_INSTR_NOP
 } sys_instr_t;
 

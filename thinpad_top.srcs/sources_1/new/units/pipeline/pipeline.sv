@@ -109,6 +109,7 @@ module pipeline(
   logic        exe_mem_rf_wen;
   logic [31:0] exe_if_pc;
   logic        exe_if_pc_sel;
+  logic [31:0] exe_exe_pc;
   logic [31:0] exe_forward_alu_a;
   logic [31:0] exe_forward_alu_b;
   logic        exe_forward_alu_a_sel;
@@ -147,6 +148,7 @@ module pipeline(
   logic        mem_mem_wen;
 
   logic        mem_busy;
+  logic        mem_tlb_flush;
   logic [`EXC_SIG_T_WIDTH-1:0] mem_exc_sig;
 
   logic [ 1:0] privilege;
@@ -189,6 +191,11 @@ module pipeline(
     // stall signals and flush signals
     .stall_i(if_stall),
     .flush_i(if_flush),
+
+      // tlb flush signals
+    .tlb_flush_i(mem_tlb_flush),
+
+    // pc mux signals
     .pc_sel_i(if_pc_sel),
     .pc_i(if_pc),
 
@@ -276,6 +283,7 @@ module pipeline(
 
     .if_pc_o(exe_if_pc),
     .if_pc_sel_o(exe_if_pc_sel),     // 0: pc+4, 1: exe_pc
+    .exe_pc_o(exe_exe_pc),
 
     // signals to MEM stage
     .mem_pc_o(exe_mem_pc),
@@ -365,6 +373,7 @@ module pipeline(
 
     // signals to hazard detection unit
     .mem_busy_o(mem_busy),
+    .mem_tlb_flush_o(mem_tlb_flush),
 
     // signals from/to exception unit
     .csr_rdata_i(exc_csr_rdata_i),
@@ -417,8 +426,9 @@ module pipeline(
     .if_pc_sel_o(if_pc_sel),
 
     // pc signals from EXE stage
-    .exe_pc_i(exe_if_pc),
-    .exe_pc_sel_i(exe_if_pc_sel),  // 0: pc+4, 1: exe_pc
+    .exe_if_pc_i(exe_if_pc),
+    .exe_if_pc_sel_i(exe_if_pc_sel),  // 0: pc+4, 1: exe_pc
+    .exe_exe_pc_i(exe_exe_pc),
 
     // signals from ID stage
     .id_rf_raddr_a_i(id_rf_raddr_a),
@@ -440,6 +450,7 @@ module pipeline(
 
     // signals from MEM stage
     .mem_mem_busy_i(mem_busy),
+    .mem_tlb_flush_i(mem_tlb_flush),
     .mem_exc_sig_i(mem_exc_sig),
 
     // signals from MEM/WB pipeline registers

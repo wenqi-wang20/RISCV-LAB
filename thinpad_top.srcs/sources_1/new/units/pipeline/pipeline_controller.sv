@@ -11,8 +11,9 @@ module pipeline_controller(
   output reg        if_pc_sel_o,
 
   // pc signals from EXE stage
-  input wire [31:0] exe_pc_i,
-  input wire        exe_pc_sel_i,  // 0: pc+4, 1: exe_pc
+  input wire [31:0] exe_if_pc_i,
+  input wire        exe_if_pc_sel_i,  // 0: pc+4, 1: exe_pc
+  input wire [31:0] exe_exe_pc_i,
 
   // signals from ID stage
   input wire [ 4:0] id_rf_raddr_a_i,
@@ -34,6 +35,7 @@ module pipeline_controller(
 
   // signals from MEM stage
   input wire        mem_mem_busy_i,
+  input wire        mem_tlb_flush_i,
   input wire [`EXC_SIG_T_WIDTH-1:0] mem_exc_sig_i,
 
   // signals from MEM/WB pipeline registers
@@ -114,7 +116,7 @@ module pipeline_controller(
     exe_forward_alu_b_sel_o = 1'b0;
 
     // exe(0) -> exe(1), exe(2)
-    mem_forward_enable = mem_rf_wen_i & ((~mem_mem_en_i) | mem_mem_wen_i);  // disable forwarding when loading
+    mem_forward_enable = mem_rf_wen_i;
     wb_forward_enable = wb_rf_wen_i;
     if (wb_forward_enable) begin
       if(wb_rf_waddr_i == exe_rf_raddr_a_i) begin
@@ -127,7 +129,7 @@ module pipeline_controller(
     end
     if (mem_forward_enable) begin
       if (mem_rf_waddr_i == exe_rf_raddr_a_i) begin
-        exe_forward_alu_a_o = mem_rf_wdata_i; // FIXME
+        exe_forward_alu_a_o = mem_rf_wdata_i;
         exe_forward_alu_a_sel_o = 1'b1;
       end else if (mem_rf_waddr_i == exe_rf_raddr_b_i) begin
         exe_forward_alu_b_o = mem_rf_wdata_i;
@@ -170,11 +172,11 @@ module pipeline_controller(
       exe_flush_o = 1'b1;
       mem_flush_o = 1'b1;
       wb_flush_o = 1'b1;
-    end else if (load_use_hazard) begin  // ID stage: last instruction(in EXE stage) is a load instruction
-      if_stall_o = 1'b1;
-      id_stall_o = 1'b1;
+    end else if (mem_tlb_flush_i) begin  // flush if tlb flush occurs
+      id_flush_o = 1'b1;
       exe_flush_o = 1'b1;
-    end else if (exe_pc_sel_i == 1'b1) begin  // branch and jump
+      mem_flush_o = 1'b1;
+    end else if (exe_if_pc_sel_i == 1'b1) begin  // branch and jump
       id_flush_o = 1'b1;
       exe_flush_o = 1'b1;
     end
@@ -183,9 +185,10 @@ module pipeline_controller(
   /* ========== PC MUX ========== */
   always_comb begin
     if_pc_o = exc_handling ? exc_pc_i :
-              exe_pc_sel_i ? exe_pc_i :
+              mem_tlb_flush_i ? exe_exe_pc_i:
+              exe_if_pc_sel_i ? exe_if_pc_i :
               32'h0000_0000;
-    if_pc_sel_o = exc_handling | exe_pc_sel_i;
+    if_pc_sel_o = exc_handling | exe_if_pc_sel_i;
   end
 
 endmodule
