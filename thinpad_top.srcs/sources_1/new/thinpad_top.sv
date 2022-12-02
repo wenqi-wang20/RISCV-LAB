@@ -937,6 +937,7 @@ module thinpad_top (
   logic [7:0] pixel;
   logic vga_de;
   // 图片的放大�?�数，默认为 2^3 �?
+  logic vga_end;
   logic [2:0] vga_scale;     
   logic [16:0] bram_addr_st = 17'b0;
 
@@ -990,6 +991,7 @@ module thinpad_top (
 
       // vga interface
       .vga_scale(vga_scale),
+      .vga_end(vga_end),
 
       // bram read interface
       .bram_0_data(bram_0_data_o),
@@ -1006,7 +1008,8 @@ module thinpad_top (
       .pixel      (pixel),
       .r_addr_st  (bram_addr_st),
       .r_addr     (bram_addrb_i),
-      .r_data     (real_bram_data)
+      .r_data     (real_bram_data),
+      .vga_end    (vga_end)
   );
 
   pic_bram pic_mem_0 (

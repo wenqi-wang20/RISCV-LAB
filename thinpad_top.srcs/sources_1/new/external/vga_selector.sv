@@ -18,6 +18,7 @@ module vga_selector #(
 
     // vga interface
     output reg [2:0] vga_scale,
+    input wire vga_end,
 
     // bram read interface
     input wire [7:0] bram_0_data,
@@ -70,10 +71,23 @@ module vga_selector #(
     // 0x8600_0004 - 0x8600_0008 bram address register (0 or 1)
     reg [31:0] bram_sele_reg = 32'h0000_0000;
 
+    logic sele_sync = 0;
+
     assign vga_scale = vga_scale_reg[2:0];
-    assign real_bram_data = bram_sele_reg[0] ? bram_1_data : bram_0_data;
+    assign real_bram_data = sele_sync ? bram_1_data : bram_0_data;
 
     logic [WISHBONE_DATA_WIDTH-1:0] wb_dat_o_tmp;
+
+    // 根据行渲染结束信号来切换渲染地址
+    always_comb begin
+        if (vga_end) begin
+            if(bram_sele_reg[0] == 0 && sele_sync == 1) begin
+                sele_sync = 0;
+            end else if (bram_sele_reg[0] == 1 && sele_sync == 0) begin
+                sele_sync = 1;
+            end
+        end
+    end
 
     // 数据转移
     always_comb begin

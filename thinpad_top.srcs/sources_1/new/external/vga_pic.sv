@@ -24,7 +24,9 @@ module vga_pic #(
     // bram 输出地址
     output reg [BRAMADDR_WIDTH-1:0] r_addr,
     // bram 输出数据
-    input wire [7:0] r_data
+    input wire [7:0] r_data,
+    // 画面渲染结束脉冲
+    output reg vga_end
 );
     parameter RED = 8'hA0;
     parameter GREEN = 8'h08;
@@ -66,8 +68,10 @@ module vga_pic #(
     always_ff @ (posedge vga_clk) begin
         if (hdata < HSIZE && vdata < VSIZE) begin
             pixel <= r_data;
+            vga_end <= 0;
         end else begin
             pixel <= WHITE;
+            vga_end <= 1;
         end
     end
 
