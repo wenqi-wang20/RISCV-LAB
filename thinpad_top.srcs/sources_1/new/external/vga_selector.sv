@@ -95,8 +95,8 @@ module vga_selector #(
     always_ff @ (posedge clk_i) begin
         if (rst_i) begin
             wb_ack_o <= 0;
-            vga_scale_reg <= 32'h0000_0003;
-            bram_sele_reg <= 32'h0000_0000;
+            vga_scale_reg <= 32'h0000_0001;
+            bram_sele_reg <= 32'h0000_0001;
         end
 
         case(state)
