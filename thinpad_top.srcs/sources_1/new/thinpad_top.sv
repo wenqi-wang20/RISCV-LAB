@@ -1000,7 +1000,7 @@ module thinpad_top (
   );
 
 
-  vga_pic #(12, 800, 600, 17) pic (
+  vga_pic #(12, 800, 600, 1040, 666, 17) pic (
       .vga_clk    (clk_50M),
       .hdata      (hdata),
       .vdata      (vdata),

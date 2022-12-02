@@ -72,7 +72,7 @@ module vga_selector #(
     reg [31:0] bram_sele_reg = 32'h0000_0000;
 
     logic sele_sync = 0;
-    logic [2:0] vga_scale_sync = 3'b011;
+    logic [2:0] vga_scale_sync = 3'b001;
 
     assign vga_scale = vga_scale_sync;
     assign real_bram_data = sele_sync ? bram_1_data : bram_0_data;

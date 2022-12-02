@@ -5,6 +5,8 @@ module vga_pic #(
     parameter WIDTH = 0,
     parameter HSIZE = 0,
     parameter VSIZE = 0,
+    parameter HMAX = 0,
+    parameter VMAX = 0,
     parameter BRAMADDR_WIDTH = 0        // bram 地址宽度
 )(
 
@@ -70,8 +72,11 @@ module vga_pic #(
             pixel <= r_data;
             vga_end <= 0;
         end else begin
-            pixel <= WHITE;
-            vga_end <= 1;
+            if (vdata == VMAX - 1) begin
+                vga_end <= 1;
+            end else begin
+                vga_end <= 0;
+            end
         end
     end
 
