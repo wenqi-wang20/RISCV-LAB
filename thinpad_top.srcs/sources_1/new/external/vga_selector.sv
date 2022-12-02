@@ -72,8 +72,9 @@ module vga_selector #(
     reg [31:0] bram_sele_reg = 32'h0000_0000;
 
     logic sele_sync = 0;
+    logic [2:0] vga_scale_sync = 3'b011;
 
-    assign vga_scale = vga_scale_reg[2:0];
+    assign vga_scale = vga_scale_sync;
     assign real_bram_data = sele_sync ? bram_1_data : bram_0_data;
 
     logic [WISHBONE_DATA_WIDTH-1:0] wb_dat_o_tmp;
@@ -83,8 +84,10 @@ module vga_selector #(
         if (vga_end) begin
             if(bram_sele_reg[0] == 0 && sele_sync == 1) begin
                 sele_sync = 0;
+                vga_scale_sync = vga_scale_reg;
             end else if (bram_sele_reg[0] == 1 && sele_sync == 0) begin
                 sele_sync = 1;
+                vga_scale_sync = vga_scale_reg;
             end
         end
     end
