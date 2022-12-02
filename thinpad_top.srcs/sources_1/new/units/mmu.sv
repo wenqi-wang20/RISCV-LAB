@@ -46,6 +46,14 @@
   tlb[30] <= 47'b0; \
   tlb[31] <= 47'b0;
 
+`define SEND_WB_REQ \
+  wb_cyc_o <= 1'b1; \
+  wb_stb_o <= 1'b1; \
+  wb_adr_o <= phy_addr; \
+  wb_dat_o <= data_i; \
+  wb_sel_o <= sel_i; \
+  wb_we_o <= store_en_i;
+
 module mmu (
   input wire clk_i,
   input wire rst_i,
@@ -169,10 +177,11 @@ module mmu (
   // Internal registers
   pte_t read_pte;
   reg pf_occur;
-  p_addr_t phy_addr;
   assign load_pf_o = pf_occur & load_en_i;
   assign store_pf_o = pf_occur & store_en_i;
   assign fetch_pf_o = pf_occur & fetch_en_i;
+  
+  assign read_pte = pte_t'(wb_dat_i);
 
   // Utility signals
   wire r_en, w_en;
@@ -206,12 +215,27 @@ module mmu (
   assign pte_addr = cur_level == 1'b1 ? a + (v_addr.vpn_1 << `PTE_SIZE_SHIFT)
                                       : a + (v_addr.vpn_0 << `PTE_SIZE_SHIFT);
 
+  p_addr_t phy_addr;
+
+  always_comb begin
+    phy_addr = 34'b0;
+    if (r_en | w_en) begin
+      if (direct) begin
+        phy_addr = v_addr;
+      end else if (tlb_hit) begin
+        phy_addr = {tlb_entry.ppn, v_addr.offset};
+      end else begin
+        phy_addr.ppn_1 = read_pte.ppn_1;
+        phy_addr.ppn_0 = cur_level == 1'b1 ? v_addr.vpn_0 : read_pte.ppn_0;
+        phy_addr.offset = v_addr.offset;
+      end
+    end
+  end
+
   typedef enum logic [2:0] {
     STATE_FETCH_PTE      = 0,
-    STATE_DECODE_PTE     = 1,
-    STATE_MEM_ACCESS     = 2,
-    STATE_MEM_ACCESS_TLB = 3,
-    STATE_DONE           = 4
+    STATE_MEM_ACCESS     = 1,
+    STATE_DONE           = 2
   } state_t;
 
   state_t state;
@@ -240,11 +264,8 @@ module mmu (
             state <= STATE_DONE;
 
           end else if (r_en | w_en) begin
-            if (tlb_hit) begin
-              phy_addr <= {tlb_entry.ppn, v_addr.offset};
-              state <= STATE_MEM_ACCESS;
-            end else if (direct) begin
-              phy_addr <= v_addr;
+            if (direct | tlb_hit) begin
+              `SEND_WB_REQ
               state <= STATE_MEM_ACCESS;
             end else begin
               // Send wishbone request to retrive PTE
@@ -258,85 +279,68 @@ module mmu (
                 // End wishbone request
                 wb_cyc_o <= 1'b0;
                 wb_stb_o <= 1'b0;
-                // Store the read PTE
-                read_pte <= pte_t'(wb_dat_i);
-                
-                state <= STATE_DECODE_PTE;
+                // Decode PTE
+                if (~read_pte.v | (~read_pte.r & read_pte.w)) begin
+                  // Invalid PTE, raise page fault
+                  pf_occur <= 1'b1;
+                  ack_o <= 1'b1;
+
+                  state <= STATE_DONE;
+                end else begin
+                  // The PTE is valid
+                  // TODO: Privilege mode checkings
+                  if (read_pte.r | read_pte.x) begin
+                    // Leaf PTE
+                    if ((load_en_i & ~read_pte.r) |
+                        (store_en_i & ~read_pte.w) |
+                        (fetch_en_i & ~read_pte.x)) begin
+                      // Illegal memory access, raise page fault
+                      pf_occur <= 1'b1;
+                      ack_o <= 1'b1;
+                      state <= STATE_DONE;
+                    end else if (cur_level == 1'b1 && read_pte.ppn_0 != 0) begin
+                      // Misaligned superpage, raise page fault
+                      pf_occur <= 1'b1;
+                      ack_o <= 1'b1;
+                      state <= STATE_DONE;
+                    end else if (~read_pte.a | (store_en_i & ~read_pte.d)) begin
+                      // According to the spec, we can either raise a page fault or update the PTE
+                      // FIXME: Just raise a page fault here, I don't know if this works
+                      pf_occur <= 1'b1;
+                      ack_o <= 1'b1;
+                      state <= STATE_DONE;
+                    end else begin
+                      // Valid memory access, update TLB
+                      tlb[tlb_tag].index <= v_addr_index;
+                      tlb[tlb_tag].ppn <= {read_pte.ppn_1, read_pte.ppn_0};
+                      tlb[tlb_tag].asid <= satp.asid;
+                      tlb[tlb_tag].valid <= 1'b1;
+
+                      `SEND_WB_REQ
+                      state <= STATE_MEM_ACCESS;
+                    end
+                  end else begin
+                    // Non-leaf PTE
+                    if (cur_level == 1'b0) begin
+                      // Raise page fault on level == 0
+                      pf_occur <= 1'b1;
+                      ack_o <= 1'b1;
+
+                      state <= STATE_DONE;
+                    end else begin
+                      // Fetch next level PTE
+                      cur_level <= 1'b0;
+                    end
+                  end
+                end
               end
             end
           end
         end
 
-        STATE_DECODE_PTE: begin
-          // Check PTE
-          if (~read_pte.v | (~read_pte.r & read_pte.w)) begin
-            // Invalid PTE, raise page fault
-            pf_occur <= 1'b1;
-            ack_o <= 1'b1;
-
-            state <= STATE_DONE;
-          end else begin
-            // The PTE is valid
-            // TODO: Privilege mode checkings
-            if (read_pte.r | read_pte.x) begin
-              // Leaf PTE
-              if ((load_en_i & ~read_pte.r) |
-                  (store_en_i & ~read_pte.w) |
-                  (fetch_en_i & ~read_pte.x)) begin
-                // Illegal memory access, raise page fault
-                pf_occur <= 1'b1;
-                ack_o <= 1'b1;
-                state <= STATE_DONE;
-              end else if (cur_level == 1'b1 && read_pte.ppn_0 != 0) begin
-                // Misaligned superpage, raise page fault
-                pf_occur <= 1'b1;
-                ack_o <= 1'b1;
-                state <= STATE_DONE;
-              end else if (~read_pte.a | (store_en_i & ~read_pte.d)) begin
-                // According to the spec, we can either raise a page fault or update the PTE
-                // FIXME: Just raise a page fault here, I don't know if this works
-                pf_occur <= 1'b1;
-                ack_o <= 1'b1;
-                state <= STATE_DONE;
-              end else begin
-                // Valid memory access, update TLB
-                tlb[tlb_tag].index <= v_addr_index;
-                tlb[tlb_tag].ppn <= {read_pte.ppn_1, read_pte.ppn_0};
-                tlb[tlb_tag].asid <= satp.asid;
-                tlb[tlb_tag].valid <= 1'b1;
-
-                // Translate into physical address
-                phy_addr.ppn_1 <= read_pte.ppn_1;
-                phy_addr.ppn_0 <= cur_level == 1'b1 ? v_addr.vpn_0 : read_pte.ppn_0;
-                phy_addr.offset <= v_addr.offset;
-
-                state <= STATE_MEM_ACCESS;
-              end
-            end else begin
-              // Non-leaf PTE
-              if (cur_level == 1'b0) begin
-                // Raise page fault on level == 0
-                pf_occur <= 1'b1;
-                ack_o <= 1'b1;
-
-                state <= STATE_DONE;
-              end else begin
-                // Fetch next level PTE
-                cur_level <= 1'b0;
-                state <= STATE_FETCH_PTE;
-              end
-            end
-          end
-        end
 
         STATE_MEM_ACCESS: begin
-          // Generate wishbone request
-          wb_cyc_o <= 1'b1;
-          wb_stb_o <= 1'b1;
-          wb_adr_o <= phy_addr;
-          wb_dat_o <= data_i;
-          wb_sel_o <= sel_i;
-          wb_we_o <= store_en_i;
+          `SEND_WB_REQ
 
           if (wb_ack_i) begin
             // End wishbone request
