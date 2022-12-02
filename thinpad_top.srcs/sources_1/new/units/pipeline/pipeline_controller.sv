@@ -122,7 +122,8 @@ module pipeline_controller(
       if(wb_rf_waddr_i == exe_rf_raddr_a_i) begin
         exe_forward_alu_a_o = wb_rf_wdata_i;
         exe_forward_alu_a_sel_o = 1'b1;
-      end else if(wb_rf_waddr_i == exe_rf_raddr_b_i) begin
+      end
+      if(wb_rf_waddr_i == exe_rf_raddr_b_i) begin
         exe_forward_alu_b_o = wb_rf_wdata_i;
         exe_forward_alu_b_sel_o = 1'b1;
       end
@@ -131,7 +132,8 @@ module pipeline_controller(
       if (mem_rf_waddr_i == exe_rf_raddr_a_i) begin
         exe_forward_alu_a_o = mem_rf_wdata_i;
         exe_forward_alu_a_sel_o = 1'b1;
-      end else if (mem_rf_waddr_i == exe_rf_raddr_b_i) begin
+      end
+      if (mem_rf_waddr_i == exe_rf_raddr_b_i) begin
         exe_forward_alu_b_o = mem_rf_wdata_i;
         exe_forward_alu_b_sel_o = 1'b1;
       end
