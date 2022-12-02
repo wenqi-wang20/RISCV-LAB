@@ -1,4 +1,5 @@
 `include "../../headers/exc.vh"
+`include "../../headers/privilege.vh"
 module id_stage(
   input wire clk_i,
   input wire rst_i,
@@ -9,8 +10,11 @@ module id_stage(
   input wire [`EXC_SIG_T_WIDTH-1:0] id_exc_sig_i,
 
   // stall signals and flush signals
-  input  wire        stall_i,
-  input  wire        flush_i,
+  input wire        stall_i,
+  input wire        flush_i,
+
+  // current privilege level
+  input wire [ 1:0] privilege_i,
 
   // regfile signals
   input wire [31:0] rf_rdata_a_i,
@@ -64,6 +68,7 @@ module id_stage(
 
   instr_decoder u_instr_decoder(
     .instr_i(instr),
+    .privilege_i(privilege_i),
     .imm_o(imm),
     .mem_en_o(mem_en),
     .mem_wen_o(mem_wen),

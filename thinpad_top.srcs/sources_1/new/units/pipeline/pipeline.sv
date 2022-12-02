@@ -215,6 +215,9 @@ module pipeline(
     .stall_i(id_stall),
     .flush_i(id_flush),
 
+    // current privilege level
+    .privilege_i(privilege),
+
     // regfile signals
     .rf_rdata_a_i(rf_rdata_a_i),
     .rf_rdata_b_i(rf_rdata_b_i),

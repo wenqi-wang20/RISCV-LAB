@@ -1,8 +1,10 @@
 `include "../headers/alu.vh"
 `include "../headers/csr.vh"
 `include "../headers/exc.vh"
+`include "../headers/privilege.vh"
 module instr_decoder(
   input wire  [31:0] instr_i,
+  input wire  [ 1:0] privilege_i,
   output reg  [31:0] imm_o,
   output reg         mem_en_o,
   output reg         mem_wen_o,
@@ -256,15 +258,23 @@ module instr_decoder(
                 instr_legal_o = (funct7 == 7'b000_0000 && rs1 == 5'b0_0000 && rd == 5'b0_0000) ? 1'b1 : 1'b0;
                 sys_instr_o = SYS_INSTR_ECALL;
               end
-              5'b0_0001: begin // ebreak
+              5'b0_0001: begin  // ebreak
                 instr_legal_o = (funct7 == 7'b000_0000 && rs1 == 5'b0_0000 && rd == 5'b0_0000) ? 1'b1 : 1'b0;
                 sys_instr_o = SYS_INSTR_EBREAK;
               end
-              5'b0_0010: begin // mret
+              5'b0_0010: begin  // mret, sret, uret
                 case (funct7)
-                  7'b001_1000: begin
-                    instr_legal_o = (rs1 == 5'b0_0000 && rd == 5'b0_0000) ? 1'b1 : 1'b0;
+                  7'b001_1000: begin  // mret
+                    instr_legal_o = (privilege_i == `PRIVILEGE_M  && rs1 == 5'b0_0000 && rd == 5'b0_0000) ? 1'b1 : 1'b0;
                     sys_instr_o = SYS_INSTR_MRET;
+                  end
+                  7'b000_1000: begin  // sret
+                    instr_legal_o = 1'b0;
+                    sys_instr_o = SYS_INSTR_NOP;
+                  end
+                  7'b000_0000: begin  // uret
+                    instr_legal_o = 1'b0;
+                    sys_instr_o = SYS_INSTR_NOP;
                   end
                   default: begin
                     instr_legal_o = 1'b0;
