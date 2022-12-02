@@ -18,7 +18,6 @@ module vga_selector #(
 
     // vga interface
     output reg [2:0] vga_scale,
-    input wire [16:0] bram_addr,
 
     // bram read interface
     input wire [7:0] bram_0_data,
@@ -96,7 +95,7 @@ module vga_selector #(
     always_ff @ (posedge clk_i) begin
         if (rst_i) begin
             wb_ack_o <= 0;
-            vga_scale_reg <= 32'h0000_0008;
+            vga_scale_reg <= 32'h0000_0003;
             bram_sele_reg <= 32'h0000_0000;
         end
 

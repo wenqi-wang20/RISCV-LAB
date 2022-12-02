@@ -990,7 +990,6 @@ module thinpad_top (
 
       // vga interface
       .vga_scale(vga_scale),
-      .bram_addr(bram_addrb_i),
 
       // bram read interface
       .bram_0_data(bram_0_data_o),
