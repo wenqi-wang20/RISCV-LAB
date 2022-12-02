@@ -38,13 +38,13 @@
     <Option Name="WTVcsLaunchSim" Val="0"/>
     <Option Name="WTRivieraLaunchSim" Val="0"/>
     <Option Name="WTActivehdlLaunchSim" Val="0"/>
-    <Option Name="WTXSimExportSim" Val="13"/>
-    <Option Name="WTModelSimExportSim" Val="13"/>
-    <Option Name="WTQuestaExportSim" Val="13"/>
-    <Option Name="WTIesExportSim" Val="13"/>
-    <Option Name="WTVcsExportSim" Val="13"/>
-    <Option Name="WTRivieraExportSim" Val="13"/>
-    <Option Name="WTActivehdlExportSim" Val="13"/>
+    <Option Name="WTXSimExportSim" Val="14"/>
+    <Option Name="WTModelSimExportSim" Val="14"/>
+    <Option Name="WTQuestaExportSim" Val="14"/>
+    <Option Name="WTIesExportSim" Val="14"/>
+    <Option Name="WTVcsExportSim" Val="14"/>
+    <Option Name="WTRivieraExportSim" Val="14"/>
+    <Option Name="WTActivehdlExportSim" Val="14"/>
     <Option Name="GenerateIPUpgradeLog" Val="TRUE"/>
     <Option Name="XSimRadix" Val="hex"/>
     <Option Name="XSimTimeUnit" Val="ns"/>
@@ -353,6 +353,12 @@
         <FileInfo>
           <Attr Name="UsedIn" Val="synthesis"/>
           <Attr Name="UsedIn" Val="implementation"/>
+          <Attr Name="UsedIn" Val="simulation"/>
+        </FileInfo>
+      </File>
+      <File Path="$PSRCDIR/sources_1/ip/pic_bram/chenrui.coe">
+        <FileInfo>
+          <Attr Name="UsedIn" Val="synthesis"/>
           <Attr Name="UsedIn" Val="simulation"/>
         </FileInfo>
       </File>

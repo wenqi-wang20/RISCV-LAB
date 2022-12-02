@@ -1,7 +1,7 @@
 // Copyright 1986-2019 Xilinx, Inc. All Rights Reserved.
 // --------------------------------------------------------------------------------
 // Tool Version: Vivado v.2019.2 (win64) Build 2708876 Wed Nov  6 21:40:23 MST 2019
-// Date        : Fri Dec  2 11:10:32 2022
+// Date        : Fri Dec  2 21:15:18 2022
 // Host        : LAPTOP-67GVJ3S2 running 64-bit major release  (build 9200)
 // Command     : write_verilog -force -mode synth_stub
 //               C:/Download/cod22-grp09/thinpad_top.srcs/sources_1/ip/pic_bram/pic_bram_stub.v

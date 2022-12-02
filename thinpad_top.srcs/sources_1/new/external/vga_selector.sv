@@ -81,6 +81,10 @@ module vga_selector #(
 
     // 根据行渲染结束信号来切换渲染地址
     always_comb begin
+
+        // 在这里，切换分辨率和切换渲染地址在逻辑上是同步的
+        // 但是在实际的硬件中，这两个操作是异步的
+        // 需要再设计一层缓存来实现同时更新
         if (vga_end) begin
             if(bram_sele_reg[0] == 0 && sele_sync == 1) begin
                 sele_sync = 0;
@@ -115,7 +119,7 @@ module vga_selector #(
 
             vga_scale_reg <= 32'h0000_0001;
             bram_sele_reg <= 32'h0000_0001;
-            
+
         end
 
         case(state)

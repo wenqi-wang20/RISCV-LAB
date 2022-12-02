@@ -68,14 +68,10 @@ module vga_pic #(
     always_ff @ (posedge vga_clk) begin
         if (hdata < HSIZE && vdata < VSIZE) begin
             pixel <= r_data;
-            if(hdata == HSIZE - 1 && vdata == VSIZE - 1) begin
-                vga_end <= 1'b1;
-            end else begin
-                vga_end <= 1'b0;
-            end
+            vga_end <= 0;
         end else begin
             pixel <= WHITE;
-            vga_end <= 0;
+            vga_end <= 1;
         end
     end
 
