@@ -307,7 +307,7 @@ module mmu (
 
                 // Translate into physical address
                 phy_addr.ppn_1 <= read_pte.ppn_1;
-                phy_addr.ppn_0 <= cur_level == 1'b1 ? v_addr.vpn_0 : 0;
+                phy_addr.ppn_0 <= cur_level == 1'b1 ? v_addr.vpn_0 : read_pte.ppn_0;
                 phy_addr.offset <= v_addr.offset;
 
                 state <= STATE_MEM_ACCESS;
