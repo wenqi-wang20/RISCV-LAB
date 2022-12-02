@@ -77,6 +77,13 @@ module bram_controller #(
     // 读取数据
     logic [BRAM_DATA_WIDTH-1:0] data_reg;
 
+    wire [1:0] addr_sel;
+    assign addr_sel = wb_adr_i[1:0];
+    wire [WISHBONE_DATA_WIDTH-1:0] wb_data_tmp;
+    assign wb_data_tmp = $signed(data_reg)<<8*(addr_sel);
+
+
+
     // 数据转移
     always_comb begin
         // 默认不写入字节，不读取字节
@@ -121,7 +128,7 @@ module bram_controller #(
             IDLE: begin
                 if (wb_cyc_i && wb_stb_i) begin
                     if(!wb_we_i) begin      // read
-                        wb_dat_o <= data_reg;
+                        wb_dat_o <= wb_data_tmp;
                     end else begin 
                         bram_data_o <= w_data;
                     end
