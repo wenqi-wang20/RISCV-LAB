@@ -35,7 +35,7 @@ module pipeline_controller(
 
   // signals from MEM stage
   input wire        mem_mem_busy_i,
-  input wire        mem_tlb_flush_i,
+  input wire        mem_tlb_flush_or_satp_update_i,
   input wire [`EXC_SIG_T_WIDTH-1:0] mem_exc_sig_i,
 
   // signals from MEM/WB pipeline registers
@@ -174,7 +174,7 @@ module pipeline_controller(
       exe_flush_o = 1'b1;
       mem_flush_o = 1'b1;
       wb_flush_o = 1'b1;
-    end else if (mem_tlb_flush_i) begin  // flush if tlb flush occurs
+    end else if (mem_tlb_flush_or_satp_update_i) begin  // flush if tlb flush occurs
       id_flush_o = 1'b1;
       exe_flush_o = 1'b1;
       mem_flush_o = 1'b1;
@@ -187,7 +187,7 @@ module pipeline_controller(
   /* ========== PC MUX ========== */
   always_comb begin
     if_pc_o = exc_handling ? exc_pc_i :
-              mem_tlb_flush_i ? exe_exe_pc_i:
+              mem_tlb_flush_or_satp_update_i ? exe_exe_pc_i:
               exe_if_pc_sel_i ? exe_if_pc_i :
               32'h0000_0000;
     if_pc_sel_o = exc_handling | exe_if_pc_sel_i;

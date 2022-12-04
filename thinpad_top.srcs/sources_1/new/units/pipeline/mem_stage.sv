@@ -55,7 +55,7 @@ module mem_stage(
 
   // signals to hazard detection unit
   output reg        mem_busy_o,
-  output reg        mem_tlb_flush_o,
+  output reg        mem_tlb_flush_or_satp_update_o,
 
   // signals from/to exception unit
   input wire [31:0] csr_rdata_i,
@@ -108,8 +108,10 @@ module mem_stage(
   logic [ 6:0] opcode;
   logic        addr_misaligned;
   logic [11:0] csr_addr;
+  logic        csr_wen;
   logic        csr_rf_wdata_sel;
   logic        tlb_flush_en;
+  logic        satp_update_en;
 
   assign funct3   = instr[14:12];
   assign opcode   = instr[ 6: 0];
@@ -316,24 +318,53 @@ module mem_stage(
     csr_waddr_o = csr_addr;
     case (sys_instr)
       SYS_INSTR_CSRRW: begin
-        csr_wdata_o = csr_rs1_data;
-        csr_wen_o = (!exc_sig.exc_occur) && (csr_rs1_addr != 5'b0_0000) && (!stall_i);
+        csr_wen = (!exc_sig.exc_occur) && (!stall_i);
+        satp_update_en = csr_wen && (csr_addr == `CSR_SATP_ADDR);
         csr_rf_wdata_sel = 1'b1;
+        csr_wen_o = csr_wen;
+        csr_wdata_o = csr_rs1_data;
       end
       SYS_INSTR_CSRRS: begin
-        csr_wdata_o = csr_rdata_i | csr_rs1_data;
-        csr_wen_o = ~exc_sig.exc_occur && (csr_rs1_addr != 5'b0_0000) && (!stall_i);
+        csr_wen = (!exc_sig.exc_occur) && (csr_rs1_addr != 5'b0_0000) && (!stall_i);
+        satp_update_en = csr_wen && (csr_addr == `CSR_SATP_ADDR);
         csr_rf_wdata_sel = 1'b1;
+        csr_wen_o = csr_wen;
+        csr_wdata_o = csr_rdata_i | csr_rs1_data;
       end
       SYS_INSTR_CSRRC: begin
-        csr_wdata_o = csr_rdata_i & ~csr_rs1_data;
-        csr_wen_o = ~exc_sig.exc_occur && (csr_rs1_addr != 5'b0_0000) && (!stall_i);
+        csr_wen = (!exc_sig.exc_occur) && (csr_rs1_addr != 5'b0_0000) && (!stall_i);
+        satp_update_en = csr_wen && (csr_addr == `CSR_SATP_ADDR);
         csr_rf_wdata_sel = 1'b1;
+        csr_wen_o = csr_wen;
+        csr_wdata_o = csr_rdata_i & ~csr_rs1_data;
+      end
+      SYS_INSTR_CSRRWI: begin
+        csr_wen = (!exc_sig.exc_occur) && (!stall_i);
+        satp_update_en = csr_wen && (csr_addr == `CSR_SATP_ADDR);
+        csr_rf_wdata_sel = 1'b1;
+        csr_wen_o = csr_wen;
+        csr_wdata_o = $unsigned(csr_rs1_addr);
+      end
+      SYS_INSTR_CSRRSI: begin
+        csr_wen = (!exc_sig.exc_occur) && (csr_rs1_addr != 5'b0_0000) && (!stall_i);
+        satp_update_en = csr_wen && (csr_addr == `CSR_SATP_ADDR);
+        csr_rf_wdata_sel = 1'b1;
+        csr_wen_o = csr_wen;
+        csr_wdata_o = csr_rdata_i | {27'b0, csr_rs1_addr};
+      end
+      SYS_INSTR_CSRRCI: begin
+        csr_wen = (!exc_sig.exc_occur) && (csr_rs1_addr != 5'b0_0000) && (!stall_i);
+        satp_update_en = csr_wen && (csr_addr == `CSR_SATP_ADDR);
+        csr_rf_wdata_sel = 1'b1;
+        csr_wen_o = csr_wen;
+        csr_wdata_o = csr_rdata_i & ~{27'b0, csr_rs1_addr};
       end
       default: begin
-        csr_wdata_o = 32'h0000_0000;
-        csr_wen_o = 1'b0;
+        csr_wen = 1'b0;
+        satp_update_en = 1'b0;
         csr_rf_wdata_sel = 1'b0;
+        csr_wen_o = 1'b0;
+        csr_wdata_o = 32'h0000_0000;
       end
     endcase
     exc_sig_csr_gen = `EXC_SIG_NULL;
@@ -423,7 +454,7 @@ module mem_stage(
 
     // signals to hazard detection unit
     mem_busy_o = mem_busy;
-    mem_tlb_flush_o = tlb_flush_en;
+    mem_tlb_flush_or_satp_update_o = tlb_flush_en | satp_update_en;
   end
 
 endmodule

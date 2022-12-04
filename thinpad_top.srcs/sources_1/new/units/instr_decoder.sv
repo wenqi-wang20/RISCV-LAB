@@ -163,7 +163,7 @@ module instr_decoder(
                 alu_op_o = ALU_ADD;
                 instr_legal_o = 1'b1;
               end
-              7'b010_0000: begin  // add
+              7'b010_0000: begin  // sub
                 alu_op_o = ALU_SUB;
                 instr_legal_o = 1'b1;
               end
@@ -329,6 +329,18 @@ module instr_decoder(
             instr_legal_o = 1'b1;
             sys_instr_o = SYS_INSTR_CSRRC;
           end
+          3'b101: begin  // csrrwi
+            instr_legal_o = 1'b1;
+            sys_instr_o = SYS_INSTR_CSRRWI;
+          end
+          3'b110: begin  // csrrsi
+            instr_legal_o = 1'b1;
+            sys_instr_o = SYS_INSTR_CSRRSI;
+          end
+          3'b111: begin  // csrrci
+            instr_legal_o = 1'b1;
+            sys_instr_o = SYS_INSTR_CSRRCI;
+          end
           default: begin
             instr_legal_o = 1'b0;
             sys_instr_o = SYS_INSTR_NOP;
@@ -425,6 +437,15 @@ module instr_decoder(
             rf_wen_o = (rd != 5'b00000) ? 1'b1 : 1'b0;
           end
           3'b011: begin  // csrrc
+            rf_wen_o = (rd != 5'b00000) ? 1'b1 : 1'b0;
+          end
+          3'b101: begin  // csrrwi
+            rf_wen_o = (rd != 5'b00000) ? 1'b1 : 1'b0;
+          end
+          3'b110: begin  // csrrsi
+            rf_wen_o = (rd != 5'b00000) ? 1'b1 : 1'b0;
+          end
+          3'b111: begin  // csrrci
             rf_wen_o = (rd != 5'b00000) ? 1'b1 : 1'b0;
           end
           default: begin

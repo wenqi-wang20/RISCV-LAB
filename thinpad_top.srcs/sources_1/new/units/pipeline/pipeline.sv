@@ -148,7 +148,7 @@ module pipeline(
   logic        mem_mem_wen;
 
   logic        mem_busy;
-  logic        mem_tlb_flush;
+  logic        mem_tlb_flush_or_satp_update;
   logic [`EXC_SIG_T_WIDTH-1:0] mem_exc_sig;
 
   logic [ 1:0] privilege;
@@ -192,8 +192,8 @@ module pipeline(
     .stall_i(if_stall),
     .flush_i(if_flush),
 
-      // tlb flush signals
-    .tlb_flush_i(mem_tlb_flush),
+      // tlb flush or sapt update signals
+    .tlb_flush_or_satp_update_i(mem_tlb_flush_or_satp_update),
 
     // pc mux signals
     .pc_sel_i(if_pc_sel),
@@ -373,7 +373,7 @@ module pipeline(
 
     // signals to hazard detection unit
     .mem_busy_o(mem_busy),
-    .mem_tlb_flush_o(mem_tlb_flush),
+    .mem_tlb_flush_or_satp_update_o(mem_tlb_flush_or_satp_update),
 
     // signals from/to exception unit
     .csr_rdata_i(exc_csr_rdata_i),
@@ -450,7 +450,7 @@ module pipeline(
 
     // signals from MEM stage
     .mem_mem_busy_i(mem_busy),
-    .mem_tlb_flush_i(mem_tlb_flush),
+    .mem_tlb_flush_or_satp_update_i(mem_tlb_flush_or_satp_update),
     .mem_exc_sig_i(mem_exc_sig),
 
     // signals from MEM/WB pipeline registers
