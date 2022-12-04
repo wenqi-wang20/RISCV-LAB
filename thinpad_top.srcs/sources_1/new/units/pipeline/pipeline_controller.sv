@@ -190,7 +190,7 @@ module pipeline_controller(
               mem_tlb_flush_or_satp_update_i ? exe_exe_pc_i:
               exe_if_pc_sel_i ? exe_if_pc_i :
               32'h0000_0000;
-    if_pc_sel_o = exc_handling | exe_if_pc_sel_i;
+    if_pc_sel_o = exc_handling | mem_tlb_flush_or_satp_update_i | exe_if_pc_sel_i;
   end
 
 endmodule
