@@ -72,7 +72,7 @@ module vga_pic #(
             pixel <= r_data;
             vga_end <= 0;
         end else begin
-            if (vdata == VMAX - 1) begin
+            if (vdata == VMAX - 1 && hdata > HMAX - 10) begin
                 vga_end <= 1;
             end else begin
                 vga_end <= 0;
