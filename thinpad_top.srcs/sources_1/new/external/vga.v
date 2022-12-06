@@ -1,16 +1,16 @@
 `timescale 1ns / 1ps
 //
-// WIDTH: bits in register hdata & vdata
-// HSIZE: horizontal size of visible field 
-// HFP: horizontal front of pulse
-// HSP: horizontal stop of pulse
-// HMAX: horizontal max size of value
-// VSIZE: vertical size of visible field 
-// VFP: vertical front of pulse
-// VSP: vertical stop of pulse
-// VMAX: vertical max size of value
-// HSPP: horizontal synchro pulse polarity (0 - negative, 1 - positive)
-// VSPP: vertical synchro pulse polarity (0 - negative, 1 - positive)
+// 12: WIDTH: bits in register hdata & vdata
+// 800: HSIZE: horizontal size of visible field 
+// 856: HFP: horizontal front of pulse
+// 976: HSP: horizontal stop of pulse
+// 1040: HMAX: horizontal max size of value
+// 600: VSIZE: vertical size of visible field 
+// 637: VFP: vertical front of pulse
+// 643:VSP: vertical stop of pulse
+// 666: VMAX: vertical max size of value
+// 1: HSPP: horizontal synchro pulse polarity (0 - negative, 1 - positive)
+// 1: VSPP: vertical synchro pulse polarity (0 - negative, 1 - positive)
 //
 module vga #(
     parameter WIDTH = 0,
@@ -25,11 +25,17 @@ module vga #(
     HSPP = 0,
     VSPP = 0
 ) (
+    // 时钟信号
     input wire clk,
+    // 行同步信号
     output wire hsync,
+    // 场同步信号
     output wire vsync,
+    // 扫描的横坐标
     output reg [WIDTH - 1:0] hdata,
+    // 扫描的纵坐标
     output reg [WIDTH - 1:0] vdata,
+    // 行有效信号
     output wire data_enable
 );
 

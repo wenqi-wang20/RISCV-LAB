@@ -194,7 +194,12 @@ module mmu (
                           v_addr == `CSR_MTIMECMP_MEM_ADDR || v_addr == `CSR_MTIMECMP_MEM_ADDR+4 ||
                           v_addr == `CSR_MTIME_MEM_ADDR || v_addr == `CSR_MTIME_MEM_ADDR+4 ||
                           (32'h8040_0000 <= v_addr && v_addr <= 32'h807F_FFFF) ||
-                          (32'h8000_0000 <= v_addr && v_addr <= 32'h8000_0FFF);
+                          (32'h8000_0000 <= v_addr && v_addr <= 32'h8000_0FFF) ||
+                          (32'h8100_0000 <= v_addr && v_addr <= 32'h81FF_FFFF) ||
+                          (32'h8300_0000 <= v_addr && v_addr <= 32'h83FF_FFFF) ||
+                          (32'h8400_0000 <= v_addr && v_addr <= 32'h84FF_FFFF) ||
+                          (32'h8500_0000 <= v_addr && v_addr <= 32'h85FF_FFFF) ||
+                          (32'h8600_0000 <= v_addr && v_addr <= 32'h86FF_FFFF);
   assign virtual_valid = (32'h0 <= v_addr && v_addr <= 32'h2F_FFFF) ||
                          (32'h7FC1_0000 <= v_addr && v_addr <= 32'h8000_1FFF) ||
                          (32'h8010_0000 <= v_addr && v_addr <= 32'h8010_0FFF);
