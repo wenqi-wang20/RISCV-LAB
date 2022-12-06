@@ -30,7 +30,8 @@ module vga_selector #(
     typedef enum logic [1:0] {
         IDLE = 0,
         READ = 1,
-        WRITE = 2
+        WRITE = 2,
+        WRITE_2 = 3
     } state_t;
     state_t state, next_state;
 
@@ -60,7 +61,15 @@ module vga_selector #(
             end
 
             WRITE: begin
-                next_state = IDLE;  // 两周期写
+                if(vga_end) begin
+                    next_state = WRITE_2;
+                end else begin
+                    next_state = WRITE;
+                end
+            end
+
+            WRITE_2: begin
+                next_state = IDLE;  // 多周期写（等待 vga end 信号）
             end
         endcase
     end
@@ -80,6 +89,8 @@ module vga_selector #(
     logic [WISHBONE_DATA_WIDTH-1:0] wb_dat_o_tmp;
 
     // 根据行渲染结束信号来切换渲染地址
+
+    // 此处应该使用
     always_comb begin
 
         // 在这里，切换分辨率和切换渲染地址在逻辑上是同步的
@@ -134,7 +145,7 @@ module vga_selector #(
                         end else if(wb_adr_i[7:0] == 8'h04) begin
                             bram_sele_reg <= wb_dat_i;
                         end
-                        wb_ack_o <= 1;
+                        wb_ack_o <= 0;
                     end
                 end
             end
@@ -144,6 +155,14 @@ module vga_selector #(
             end
 
             WRITE: begin
+                if(vga_end) begin
+                    wb_ack_o <= 1;
+                end else begin 
+                    wb_ack_o <= 0;
+                end
+            end
+
+            WRITE_2: begin
                 wb_ack_o <= 0;
             end
         endcase
