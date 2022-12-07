@@ -59,22 +59,7 @@ csr_sie_t      sie_reg;
 csr_sip_t      sip_reg;
 csr_satp_t     satp_reg;
 
-// The sstatus, sie and sip are considered hard-wired subset of
-// mstatus, mie and mip, respectively
-always_comb begin
-  sstatus_reg = 0;
-  sstatus_reg.sd = mstatus_reg.sd;
-  sstatus_reg.mxr = mstatus_reg.mxr;
-  sstatus_reg.sum = mstatus_reg.sum;
-  sstatus_reg.xs = mstatus_reg.xs;
-  sstatus_reg.fs = mstatus_reg.fs;
-  sstatus_reg.spp = mstatus_reg.spp;
-  sstatus_reg.spie = mstatus_reg.spie;
-  sstatus_reg.upie = mstatus_reg.upie;
-  sstatus_reg.sie = mstatus_reg.sie;
-  sstatus_reg.uie = mstatus_reg.uie;
-end
-
+// The sie and sip are considered hard-wired subset of mie and mip
 always_comb begin
   sie_reg = 0;
   sie_reg.seie = mie_reg.seie;
@@ -154,29 +139,27 @@ assign uti_occur = mie_reg.utie & mip_reg.utip;
 assign usi_occur = mie_reg.usie & mip_reg.usip;
 
 wire m_has_interrupt, s_has_interrupt, u_has_interrupt;
-assign m_has_interrupt = (mei_occur | mti_occur | msi_occur) & mstatus_reg.mie;
-assign s_has_interrupt = (sei_occur | sti_occur | ssi_occur) & mstatus_reg.sie;
-assign u_has_interrupt = (uei_occur | uti_occur | usi_occur) & mstatus_reg.uie;
+assign m_has_interrupt = mei_occur | mti_occur | msi_occur;
+assign s_has_interrupt = sei_occur | sti_occur | ssi_occur;
+assign u_has_interrupt = uei_occur | uti_occur | usi_occur;
 
 logic [1:0] interrupt_level;
-logic       interrupt_occur;
-assign interrupt_occur_o = interrupt_occur;
 
 always_comb begin
   case (privilege_i)
     `PRIVILEGE_M: begin
-      interrupt_occur = m_has_interrupt & mstatus_reg.mie;
+      interrupt_occur_o = m_has_interrupt & mstatus_reg.mie;
     end
     `PRIVILEGE_S: begin
-      interrupt_occur = m_has_interrupt |
-                        (s_has_interrupt & mstatus_reg.sie);
+      interrupt_occur_o = m_has_interrupt |
+                         (s_has_interrupt & mstatus_reg.sie);
     end
     `PRIVILEGE_U: begin
-      interrupt_occur = m_has_interrupt | s_has_interrupt |
-                        (u_has_interrupt & mstatus_reg.uie);
+      interrupt_occur_o = m_has_interrupt | s_has_interrupt |
+                         (u_has_interrupt & mstatus_reg.uie);
     end
     default: begin
-      interrupt_occur = 1'b0;
+      interrupt_occur_o = 1'b0;
     end
   endcase
 
@@ -219,37 +202,30 @@ always_comb begin
   end
 end
 
-logic deleg_exc;
+wire deleg_interrupt;
+wire deleg_sync_exc;
+assign deleg_interrupt = mideleg_reg[exc_code];
+assign deleg_sync_exc = medeleg_reg[exc_code];
+
+// Output signals
 always_comb begin
-  if (privilege_i == `PRIVILEGE_M) begin
-    // Traps never transition from a more-privileged mode to a
-    // less-privileged mode
-    deleg_exc = 1'b0;
-  end else if (interrupt_occur) begin
-    deleg_exc = mideleg_reg[exc_code];
-  end else begin
-    deleg_exc = medeleg_reg[exc_code];
+  nxt_privilege_o = 0;
+  if (exc_en_i) begin
+    nxt_privilege_o = `PRIVILEGE_M;
+  end
+  else if (exc_ret_i) begin
+    nxt_privilege_o = mstatus_reg.mpp;
   end
 end
 
 always_comb begin
   next_pc_o = 0;
-  nxt_privilege_o = 0;
   if (exc_en_i) begin
-    if (!deleg_exc) begin
-      next_pc_o = mtvec_reg.mode == 2'b00 ?
-                  {mtvec_reg.base, 2'b00} : /* direct */
-                  {mtvec_reg.base, 2'b00} + (exc_code << 2); /* vectored */
-      nxt_privilege_o = `PRIVILEGE_M;
-    end else begin
-      next_pc_o = stvec_reg.mode == 1'b0 ?
-                  {stvec_reg.base, 2'b00} : /* direct */
-                  {stvec_reg.base, 2'b00} + (exc_code << 2); /* vectored */
-      nxt_privilege_o = `PRIVILEGE_S;
-    end
+    next_pc_o = mtvec_reg.mode == 2'b00 ?
+                {mtvec_reg.base, 2'b00} : /* direct */
+                {mtvec_reg.base, 2'b00} + (exc_code << 2); /* vectored */
   end else if (exc_ret_i) begin
     next_pc_o = mepc_reg;
-    nxt_privilege_o = mstatus_reg.mpp;
   end
 end
 
@@ -268,6 +244,7 @@ always_ff @(posedge clk_i) begin
     medeleg_reg <= 0;
     mideleg_reg <= 0;
 
+    sstatus_reg <= 0;
     sepc_reg <= 0;
     stvec_reg <= 0;
     scause_reg <= 0;
@@ -275,53 +252,35 @@ always_ff @(posedge clk_i) begin
     stvec_reg <= 0;
     sscratch_reg <= 0;
     satp_reg <= 0;
-
   end else if (exc_en_i) begin
-    if (!deleg_exc) begin
-      // Set cause
-      mcause_reg <= {interrupt_occur, exc_code};
-      // Set mtval
-      mtval_reg <= mtval_i;
+    // TODO: Delegation
+    // Set cause
+    mcause_reg <= {interrupt_occur_o, exc_code};
+    // Set mtval
+    mtval_reg <= mtval_i;
 
-      // Save current state
-      mstatus_reg.mpp <= privilege_i;
-      mstatus_reg.mpie <= mstatus_reg.mie;
-      mepc_reg <= {cur_pc_i[31:2], 2'b00};
+    // Save current state
+    mstatus_reg.mpp <= privilege_i;
+    mstatus_reg.mpie <= mstatus_reg.mie;
+    mepc_reg <= {cur_pc_i[31:2], 2'b00};
 
-      // Disable interrupts
-      mstatus_reg.mie <= 1'b0;
-    end else begin
-      // Delegate to S-mode
-      scause_reg <= {interrupt_occur, exc_code};
-      stval_reg <= mtval_i;
-
-      mstatus_reg.spp <= privilege_i;
-      mstatus_reg.spie <= mstatus_reg.sie;
-      sepc_reg <= {cur_pc_i[31:2], 2'b00};
-
-      mstatus_reg.sie <= 1'b0;
-    end
+    // Disable interrupts
+    mstatus_reg.mie <= 1'b0;
 
   end else if (exc_ret_i) begin
     // Return from trap (privilege spec 3.1.6.1)
-    if (privilege_i == `PRIVILEGE_M) begin
-      // mret
-      mstatus_reg.mie <= mstatus_reg.mpie;
-      mstatus_reg.mpie <= 1'b1;
-      mstatus_reg.mpp <= `PRIVILEGE_U;
-    end else if (privilege_i == `PRIVILEGE_S) begin
-      // sret
-      mstatus_reg.sie <= mstatus_reg.spie;
-      mstatus_reg.spie <= 1'b1;
-      mstatus_reg.spp <= `PRIVILEGE_U;
-    end else begin
-      // We do not support uret...
-    end
+    mstatus_reg.mie <= mstatus_reg.mpie;
+    mstatus_reg.mpie <= 1'b1;
+    mstatus_reg.mpp <= `PRIVILEGE_U;
     
   end else if (csr_we_i & ~invalid_w_o) begin
     case (csr_waddr_i)
       `CSR_MSTATUS_ADDR: begin
         mstatus_reg <= csr_wdata_i;
+        // xPP: WARL, only holding levels lower than x
+        if (csr_wdata_i[11:10] >= privilege_i) begin
+          mstatus_reg.mpp <= mstatus_reg.mpp;
+        end
       end
       `CSR_MTVEC_ADDR: begin
         // direct mode or vectored mode
@@ -330,10 +289,22 @@ always_ff @(posedge clk_i) begin
         end
       end
       `CSR_MIP_ADDR: begin
-        // Only MTIP and STIP is implemented. MTIP is read-only to software,
-        // and only privilege level > S can write SxIP
-        if (privilege_i == `PRIVILEGE_M) begin
-          mip_reg.stip <= csr_wdata_i[5];
+        mip_reg <= csr_wdata_i;
+        // The xyIP is writable for only level > x
+        if (privilege_i <= `PRIVILEGE_M) begin
+          mip_reg.meip <= mip_reg.meip;
+          mip_reg.msip <= mip_reg.msip;
+          mip_reg.mtip <= mip_reg.mtip;
+        end
+        if (privilege_i <= `PRIVILEGE_S) begin
+          mip_reg.seip <= mip_reg.seip;
+          mip_reg.ssip <= mip_reg.ssip;
+          mip_reg.stip <= mip_reg.stip;
+        end
+        if (privilege_i <= `PRIVILEGE_U) begin
+          mip_reg.ueip <= mip_reg.ueip;
+          mip_reg.usip <= mip_reg.usip;
+          mip_reg.utip <= mip_reg.utip;
         end
       end
       `CSR_MIE_ADDR: begin
@@ -352,6 +323,9 @@ always_ff @(posedge clk_i) begin
           mcause_reg.exc_code <= csr_wdata_i[30:0];
         end
       end
+      `CSR_SATP_ADDR: begin
+        satp_reg <= csr_wdata_i;
+      end
       `CSR_MTVAL_ADDR: begin
         mtval_reg <= csr_wdata_i;
       end
@@ -360,56 +334,11 @@ always_ff @(posedge clk_i) begin
       end
       `CSR_MEDELEG_ADDR: begin
         medeleg_reg <= csr_wdata_i;
-        // medeleg[11] is hardwired to 0
-        medeleg_reg[11] <= 1'b0;
       end
       `CSR_MIDELEG_ADDR: begin
         mideleg_reg <= csr_wdata_i;
       end
-      `CSR_SSTATUS_ADDR: begin
-        mstatus_reg.spp <= csr_wdata_i[8];
-        mstatus_reg.spie <= csr_wdata_i[5];
-        mstatus_reg.upie <= csr_wdata_i[4];
-        mstatus_reg.sie <= csr_wdata_i[1];
-        mstatus_reg.uie <= csr_wdata_i[0];
-      end
-      `CSR_SEPC_ADDR: begin
-        sepc_reg <= {csr_wdata_i[31:2], 2'b00};
-      end
-      `CSR_SCAUSE_ADDR: begin
-        scause_reg.interrupt <= csr_wdata_i[31];
-        if (csr_wdata_i[30:0] < 16) begin
-          scause_reg.exc_code <= csr_wdata_i[30:0];
-        end
-      end
-      `CSR_STVAL_ADDR: begin
-        stval_reg <= csr_wdata_i;
-      end
-      `CSR_STVEC_ADDR: begin
-        // Direct mode or vectored mode
-        if (csr_wdata_i[1:0] < 2'b10) begin
-          stvec_reg <= csr_wdata_i;
-        end
-      end
-      `CSR_SSCRATCH_ADDR: begin
-        sscratch_reg <= csr_wdata_i;
-      end
-      `CSR_SIE_ADDR: begin
-        // Map sie write to mie
-        mie_reg.seie = csr_wdata_i[9];
-        mie_reg.ueie = csr_wdata_i[8];
-        mie_reg.stie = csr_wdata_i[5];
-        mie_reg.utie = csr_wdata_i[4];
-        mie_reg.seie = csr_wdata_i[1];
-        mie_reg.ueie = csr_wdata_i[0];
-      end
-      `CSR_SIP_ADDR: begin
-        // STIP is read-only through sip
-        // Do nothing as we are only implementing STIP
-      end
-      `CSR_SATP_ADDR: begin
-        satp_reg <= csr_wdata_i;
-      end
+      // TODO: Other CSRs
       default: ;
     endcase
   end
