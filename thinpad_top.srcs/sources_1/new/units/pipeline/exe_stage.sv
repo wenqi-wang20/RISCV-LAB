@@ -6,6 +6,7 @@ module exe_stage(
   input wire rst_i,
 
   // signals from ID stage
+  input wire        exe_flushed_i,
   input wire [31:0] exe_pc_i,
   input wire [31:0] exe_instr_i,
   input wire [ 4:0] exe_rf_raddr_a_i,
@@ -64,6 +65,7 @@ module exe_stage(
 );
 
   // pipeline registers
+  logic        flushed;
   logic [31:0] pc;
   logic [31:0] instr;
   logic [ 4:0] rf_raddr_a;
@@ -103,6 +105,7 @@ module exe_stage(
 
   always_ff @(posedge clk_i) begin
     if (rst_i) begin
+			flushed <= 1'b1;
       pc <= 32'h0;
       instr <= 32'h0000_0013;  // nop
       rf_raddr_a <= 5'h0;
@@ -122,6 +125,7 @@ module exe_stage(
     end else if (stall_i) begin
       // do nothing
     end else if (flush_i) begin
+			flushed <= 1'b1;
       pc <= 32'h0;
       instr <= 32'h0000_0013;  // nop
       rf_raddr_a <= 5'h0;
@@ -139,6 +143,7 @@ module exe_stage(
       sys_instr <= SYS_INSTR_NOP;
       exc_sig <= `EXC_SIG_NULL;
     end else begin
+			flushed <= exe_flushed_i;
       pc <= exe_pc_i;
       instr <= exe_instr_i;
       rf_raddr_a <= exe_rf_raddr_a_i;
@@ -226,7 +231,7 @@ module exe_stage(
     exe_pc_o = pc;
 
     // exception signals generation
-    if (interrupt_i) begin
+    if (interrupt_i && !flushed) begin
       exc_sig_gen.exc_occur = 1'b1;
       exc_sig_gen.exc_ret = 1'b0;
       exc_sig_gen.cur_pc = pc;
