@@ -69,9 +69,9 @@ module sram_controller #(
         endcase
     end
 
-    wire [31:0] sram_data_i_comb;
-    reg [31:0] sram_data_o_comb;
-    reg sram_data_t_comb;
+    wire [31:0]  sram_data_i_comb;
+    reg  [31:0]  sram_data_o_comb;
+    reg          sram_data_t_comb;
 
     assign sram_data = sram_data_t_comb ? 32'bz : sram_data_o_comb;
     assign sram_data_i_comb = sram_data;
@@ -83,7 +83,6 @@ module sram_controller #(
         sram_we_n = 1'b1;
         sram_be_n = ~wb_sel_i;  // debug this for too long 😅
         sram_addr = wb_adr_i[SRAM_ADDR_WIDTH+1:2];  // 4 bytes align
-        sram_data_o_comb = wb_dat_i;
         sram_data_t_comb = 1'b0;
         case (current_state)
             STATE_IDLE: begin
@@ -118,6 +117,33 @@ module sram_controller #(
                 sram_oe_n = 1'b1;
                 sram_we_n = 1'b1;
                 sram_data_t_comb = 1'b0;
+            end
+        endcase
+
+        case (wb_sel_i)
+            4'b0001: begin
+                sram_data_o_comb = {24'b0, wb_dat_i[7:0]};
+            end
+            4'b0010: begin
+                sram_data_o_comb = {16'b0, wb_dat_i[7:0], 8'b0};
+            end
+            4'b0100: begin
+                sram_data_o_comb = {8'b0, wb_dat_i[7:0], 16'b0};
+            end
+            4'b1000: begin
+                sram_data_o_comb = {wb_dat_i[7:0], 24'b0};
+            end
+            4'b1100: begin
+                sram_data_o_comb = {wb_dat_i[15:0], 16'b0};
+            end
+            4'b0011: begin
+                sram_data_o_comb = {16'b0, wb_dat_i[15:0]};
+            end
+            4'b1111: begin
+                sram_data_o_comb = wb_dat_i;
+            end
+            default: begin
+                sram_data_o_comb = wb_dat_i;
             end
         endcase
     end
