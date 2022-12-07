@@ -187,28 +187,21 @@ module mmu (
   wire r_en, w_en;
   assign r_en = load_en_i | fetch_en_i;
   assign w_en = store_en_i;
-  wire direct, valid, direct_valid, virtual_valid;
-  wire is_direct_addr;
-  assign is_direct_addr = (v_addr >= 32'h200_0000 && v_addr <= 32'h200_FFFF) ||
-                          (v_addr >= 32'h1000_0000 && v_addr <= 32'h1000_FFFF) ||
-                          v_addr == `CSR_MTIMECMP_MEM_ADDR || v_addr == `CSR_MTIMECMP_MEM_ADDR+4 ||
-                          v_addr == `CSR_MTIME_MEM_ADDR || v_addr == `CSR_MTIME_MEM_ADDR+4 ||
-                          (32'h8040_0000 <= v_addr && v_addr <= 32'h807F_FFFF) ||
-                          (32'h8000_0000 <= v_addr && v_addr <= 32'h8000_0FFF) ||
-                          (32'h8100_0000 <= v_addr && v_addr <= 32'h81FF_FFFF) ||
-                          (32'h8300_0000 <= v_addr && v_addr <= 32'h83FF_FFFF) ||
-                          (32'h8400_0000 <= v_addr && v_addr <= 32'h84FF_FFFF) ||
-                          (32'h8500_0000 <= v_addr && v_addr <= 32'h85FF_FFFF) ||
-                          (32'h8600_0000 <= v_addr && v_addr <= 32'h86FF_FFFF);
-  assign virtual_valid = (32'h0 <= v_addr && v_addr <= 32'h2F_FFFF) ||
-                         (32'h7FC1_0000 <= v_addr && v_addr <= 32'h8000_1FFF) ||
-                         (32'h8010_0000 <= v_addr && v_addr <= 32'h8010_0FFF);
-  assign direct_valid = is_direct_addr || (32'h8000_0000 <= v_addr && v_addr <= 32'h803F_FFFF);
-  assign valid = (satp.mode == 1'b0 || privilege_i == `PRIVILEGE_M) ?
-                 direct_valid : (virtual_valid || is_direct_addr);
-  assign invalid_addr_o = ~valid;
-
-  assign direct = satp.mode == 1'b0 || privilege_i == `PRIVILEGE_M || is_direct_addr;
+  wire direct, phy_valid;
+  // assign phy_valid = (phy_addr >= 32'h200_0000 && phy_addr <= 32'h200_FFFF) ||
+  //                    (phy_addr >= 32'h1000_0000 && phy_addr <= 32'h1000_FFFF) ||
+  //                    phy_addr == `CSR_MTIMECMP_MEM_ADDR || phy_addr == `CSR_MTIMECMP_MEM_ADDR+4 ||
+  //                    phy_addr == `CSR_MTIME_MEM_ADDR || phy_addr == `CSR_MTIME_MEM_ADDR+4 ||
+  //                    (32'h8040_0000 <= phy_addr && phy_addr <= 32'h807F_FFFF) ||
+  //                    (32'h8000_0000 <= phy_addr && phy_addr <= 32'h8000_0FFF) ||
+  //                    (32'h8100_0000 <= phy_addr && phy_addr <= 32'h81FF_FFFF) ||
+  //                    (32'h8300_0000 <= phy_addr && phy_addr <= 32'h83FF_FFFF) ||
+  //                    (32'h8400_0000 <= phy_addr && phy_addr <= 32'h84FF_FFFF) ||
+  //                    (32'h8500_0000 <= phy_addr && phy_addr <= 32'h85FF_FFFF) ||
+  //                    (32'h8600_0000 <= phy_addr && phy_addr <= 32'h86FF_FFFF);
+  assign phy_valid = 1'b1;
+  assign invalid_addr_o = ~phy_valid;
+  assign direct = satp.mode == 1'b0 || privilege_i == `PRIVILEGE_M;
 
   // Translation related signals
   wire [33:0] a;
@@ -270,8 +263,13 @@ module mmu (
 
           end else if (r_en | w_en) begin
             if (direct | tlb_hit) begin
-              `SEND_WB_REQ
-              state <= STATE_MEM_ACCESS;
+              if (~phy_valid) begin
+                ack_o <= 1'b1;
+                state <= STATE_DONE;
+              end else begin
+                `SEND_WB_REQ
+                state <= STATE_MEM_ACCESS;
+              end
             end else begin
               // Send wishbone request to retrive PTE
               wb_cyc_o <= 1'b1;
@@ -315,14 +313,19 @@ module mmu (
                       ack_o <= 1'b1;
                       state <= STATE_DONE;
                     end else begin
-                      // Valid memory access, update TLB
-                      tlb[tlb_tag].index <= v_addr_index;
-                      tlb[tlb_tag].ppn <= {read_pte.ppn_1, read_pte.ppn_0};
-                      tlb[tlb_tag].asid <= satp.asid;
-                      tlb[tlb_tag].valid <= 1'b1;
+                      if (!phy_valid) begin
+                        ack_o <= 1'b1;
+                        state <= STATE_DONE;
+                      end else begin
+                        // Valid memory access, update TLB
+                        tlb[tlb_tag].index <= v_addr_index;
+                        tlb[tlb_tag].ppn <= {read_pte.ppn_1, read_pte.ppn_0};
+                        tlb[tlb_tag].asid <= satp.asid;
+                        tlb[tlb_tag].valid <= 1'b1;
 
-                      `SEND_WB_REQ
-                      state <= STATE_MEM_ACCESS;
+                        `SEND_WB_REQ
+                        state <= STATE_MEM_ACCESS;
+                      end
                     end
                   end else begin
                     // Non-leaf PTE

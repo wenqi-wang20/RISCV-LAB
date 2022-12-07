@@ -38,9 +38,9 @@ module lab6_tb;
   wire uart_tsre;  // 数据发送完毕标志
 
   // Windows 需要注意路径分隔符的转义，例如 "D:\\foo\\bar.bin"
-  parameter BASE_RAM_INIT_FILE = "C:\\Users\\Trrui\\Desktop\\kernel.bin"; // BaseRAM 初始化文件，请修改为实际的绝对路径
-  parameter BASE_RAM_INIT_FILE_USER = "C:\\Users\\Trrui\\Desktop\\write_serial.bin";
-  parameter EXT_RAM_INIT_FILE = "/tmp/eram.bin";  // ExtRAM 初始化文件，请修改为实际的绝对路径
+  parameter BASE_RAM_INIT_FILE = "C:\\Users\\Trrui\\Desktop\\ucore\\rbl.img"; // BaseRAM 初始化文件，请修改为实际的绝对路径
+//   parameter BASE_RAM_INIT_FILE_USER = "C:\\Users\\Trrui\\Desktop\\write_serial.bin";
+  parameter EXT_RAM_INIT_FILE = "C:\\Users\\Trrui\\Desktop\\ucore\\ucore.img";  // ExtRAM 初始化文件，请修改为实际的绝对路径
 
   initial begin
     // 在这里可以自定义测试输入序列，例如：
@@ -180,26 +180,26 @@ module lab6_tb;
   end
 
     // 从文件加载 BaseRAM-user
-  initial begin
-    reg [31:0] tmp_array[0:1048575];
-    integer n_File_ID, n_Init_Size;
-    n_File_ID = $fopen(BASE_RAM_INIT_FILE_USER, "rb");
-    if (!n_File_ID) begin
-      n_Init_Size = 0;
-      $display("Failed to open BaseRAM init file");
-    end else begin
-      n_Init_Size = $fread(tmp_array, n_File_ID);
-      n_Init_Size /= 4;
-      $fclose(n_File_ID);
-    end
-    $display("BaseRAM Init Size(words): %d", n_Init_Size);
-    for (integer i = 0; i < n_Init_Size; i++) begin
-      base1.mem_array0[i+32'h1000] = tmp_array[i][24+:8];
-      base1.mem_array1[i+32'h1000] = tmp_array[i][16+:8];
-      base2.mem_array0[i+32'h1000] = tmp_array[i][8+:8];
-      base2.mem_array1[i+32'h1000] = tmp_array[i][0+:8];
-    end
-  end
+//   initial begin
+//     reg [31:0] tmp_array[0:1048575];
+//     integer n_File_ID, n_Init_Size;
+//     n_File_ID = $fopen(BASE_RAM_INIT_FILE_USER, "rb");
+//     if (!n_File_ID) begin
+//       n_Init_Size = 0;
+//       $display("Failed to open BaseRAM init file");
+//     end else begin
+//       n_Init_Size = $fread(tmp_array, n_File_ID);
+//       n_Init_Size /= 4;
+//       $fclose(n_File_ID);
+//     end
+//     $display("BaseRAM Init Size(words): %d", n_Init_Size);
+//     for (integer i = 0; i < n_Init_Size; i++) begin
+//       base1.mem_array0[i+32'h1000] = tmp_array[i][24+:8];
+//       base1.mem_array1[i+32'h1000] = tmp_array[i][16+:8];
+//       base2.mem_array0[i+32'h1000] = tmp_array[i][8+:8];
+//       base2.mem_array1[i+32'h1000] = tmp_array[i][0+:8];
+//     end
+//   end
 
   // 从文件加载 ExtRAM
   initial begin

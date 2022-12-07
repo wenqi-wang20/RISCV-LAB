@@ -81,6 +81,7 @@ module pipeline(
   logic [`EXC_SIG_T_WIDTH-1:0] if_id_exc_sig;
 
   // ID signals
+  logic        id_exe_flushed;
   logic [31:0] id_exe_pc;
   logic [31:0] id_exe_instr;
   logic [ 4:0] id_exe_rf_raddr_a;
@@ -232,6 +233,7 @@ module pipeline(
     .rf_raddr_b_o(rf_raddr_b_o),
 
     // signals to EXE stage
+    .exe_flushed_o(id_exe_flushed),
     .exe_pc_o(id_exe_pc),
     .exe_instr_o(id_exe_instr),
     .exe_rf_raddr_a_o(id_exe_rf_raddr_a),
@@ -260,6 +262,7 @@ module pipeline(
     .rst_i(rst_i),
 
     // signals from ID stage
+    .exe_flushed_i(id_exe_flushed),
     .exe_pc_i(id_exe_pc),
     .exe_instr_i(id_exe_instr),
     .exe_rf_raddr_a_i(id_exe_rf_raddr_a),
