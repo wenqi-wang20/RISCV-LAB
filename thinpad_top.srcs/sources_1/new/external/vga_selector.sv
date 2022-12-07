@@ -91,20 +91,20 @@ module vga_selector #(
     // 根据行渲染结束信号来切换渲染地址
 
     // 此处应该使用时序逻辑
-    always_comb begin
-        // 在这里，切换分辨率和切换渲染地址在逻辑上是同步的
-        // 但是在实际的硬件中，这两个操作是异步的
-        // 需要再设计一层缓存来实现同时更新
-        if (vga_end) begin
-            if(bram_sele_reg[0] == 0 && sele_sync == 1) begin
-                sele_sync = 0;
-                vga_scale_sync = vga_scale_reg;
-            end else if (bram_sele_reg[0] == 1 && sele_sync == 0) begin
-                sele_sync = 1;
-                vga_scale_sync = vga_scale_reg;
-            end
-        end
-    end
+    // always_comb begin
+    //     // 在这里，切换分辨率和切换渲染地址在逻辑上是同步的
+    //     // 但是在实际的硬件中，这两个操作是异步的
+    //     // 需要再设计一层缓存来实现同时更新
+    //     if (vga_end) begin
+    //         if(bram_sele_reg[0] == 0 && sele_sync == 1) begin
+    //             sele_sync = 0;
+    //             vga_scale_sync = vga_scale_reg;
+    //         end else if (bram_sele_reg[0] == 1 && sele_sync == 0) begin
+    //             sele_sync = 1;
+    //             vga_scale_sync = vga_scale_reg;
+    //         end
+    //     end
+    // end
 
     // 数据转移
     always_comb begin
@@ -130,6 +130,8 @@ module vga_selector #(
             vga_scale_reg <= 32'h0000_0001;
             bram_sele_reg <= 32'h0000_0001;
 
+            sele_sync <= 1;
+            vga_scale_sync <= 3'b001;
         end
 
         case(state)
@@ -156,6 +158,10 @@ module vga_selector #(
             WRITE: begin
                 if(vga_end) begin
                     wb_ack_o <= 1;
+
+                    // 时序逻辑修改
+                    sele_sync <= bram_sele_reg[0];
+                    vga_scale_sync <= vga_scale_reg[2:0];
                 end else begin 
                     wb_ack_o <= 0;
                 end

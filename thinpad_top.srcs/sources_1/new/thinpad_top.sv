@@ -245,13 +245,20 @@ module thinpad_top (
     else reset_of_clk10M <= 1'b0;
   end
 
+  logic reset_of_clk20M;
+  // 异步复位，同步释放，�? locked 信号转为后级电路的复�? reset_of_clk10M
+  always_ff @(posedge clk_20M or negedge locked) begin
+    if (~locked) reset_of_clk20M <= 1'b1;
+    else reset_of_clk20M <= 1'b0;
+  end
+
   /* =========== Demo code end =========== */
 
   logic sys_clk;
   logic sys_rst;
 
-  assign sys_clk = clk_10M;
-  assign sys_rst = reset_of_clk10M;
+  assign sys_clk = clk_20M;
+  assign sys_rst = reset_of_clk20M;
 
   // 本实验不使用 CPLD 串口，禁用防止�?�线冲突
   assign uart_rdn = 1'b1;
@@ -881,7 +888,7 @@ module thinpad_top (
   // 串口控制器模�?
   // NOTE: 如果修改系统时钟频率，也�?要修改此处的时钟频率参数
   uart_controller #(
-      .CLK_FREQ(10_000_000),
+      .CLK_FREQ(20_000_000),
       .BAUD    (115200)
   ) uart_controller (
       .clk_i(sys_clk),
