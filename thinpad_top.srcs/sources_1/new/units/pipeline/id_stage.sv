@@ -23,6 +23,7 @@ module id_stage(
   output reg [ 4:0] rf_raddr_b_o,
 
   // signals to EXE stage
+  output reg        exe_flushed_o,
   output reg [31:0] exe_pc_o,
   output reg [31:0] exe_instr_o,
   output reg [ 4:0] exe_rf_raddr_a_o,
@@ -52,6 +53,7 @@ module id_stage(
   exc_sig_t    exc_sig;
 
   // generated signals
+  logic        flushed;
   logic [31:0] imm;
   logic        mem_en;
   logic        mem_wen;
@@ -85,16 +87,19 @@ module id_stage(
 
   always_ff @(posedge clk_i) begin
     if (rst_i) begin
+      flushed <= 1'b1;
       pc <= 32'h0;
       instr <= 32'h0000_0013;  // nop
       exc_sig <= `EXC_SIG_NULL;
     end else if (stall_i) begin
       // do nothing
     end else if (flush_i) begin
+      flushed <= 1'b1;
       pc <= 32'h0;
       instr <= 32'h0000_0013;  // nop
       exc_sig <= `EXC_SIG_NULL;
     end else begin
+      flushed <= 1'b0;
       pc <= id_pc_i;
       instr <= id_instr_i;
       exc_sig <= id_exc_sig_i;
@@ -111,6 +116,7 @@ module id_stage(
     id_rf_raddr_b_o = rf_raddr_b;
     
     // signals to EXE stage
+    exe_flushed_o = flushed;
     exe_pc_o = pc;
     exe_instr_o = instr;
     exe_rf_raddr_a_o = rf_raddr_a;
