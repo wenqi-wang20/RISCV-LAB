@@ -68,7 +68,9 @@ module pipeline(
   output wire [ 1:0] exc_privilege_o,
 
   input  wire [31:0] exc_next_pc_i,
-  input  wire [ 1:0] exc_nxt_privilege_i
+  input  wire [ 1:0] exc_nxt_privilege_i,
+
+  output wire [15:0] led_pc_o
 );
 
   // basic mmu version
@@ -168,6 +170,8 @@ module pipeline(
   logic exe_flush;
   logic mem_flush;
   logic wb_flush;
+
+  assign led_pc_o = if_id_pc[15:0];
 
   /* ========== IF stage ========== */
   if_stage u_if_stage(

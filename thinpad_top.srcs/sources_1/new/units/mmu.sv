@@ -54,6 +54,17 @@
   wb_sel_o <= sel_i; \
   wb_we_o <= store_en_i;
 
+`define PHY_ADDR_VALID \
+  ((phy_addr >= 32'h1000_0000 && phy_addr <= 32'h1000_FFFF) || \
+  phy_addr == `CSR_MTIMECMP_MEM_ADDR || phy_addr == `CSR_MTIMECMP_MEM_ADDR+4 || \
+  phy_addr == `CSR_MTIME_MEM_ADDR || phy_addr == `CSR_MTIME_MEM_ADDR+4 || \
+  (32'h8000_0000 <= phy_addr && phy_addr <= 32'h807F_FFFF) || \
+  (32'h8100_0000 <= phy_addr && phy_addr <= 32'h81FF_FFFF) || \
+  (32'h8300_0000 <= phy_addr && phy_addr <= 32'h83FF_FFFF) || \
+  (32'h8400_0000 <= phy_addr && phy_addr <= 32'h84FF_FFFF) || \
+  (32'h8500_0000 <= phy_addr && phy_addr <= 32'h85FF_FFFF) || \
+  (32'h8600_0000 <= phy_addr && phy_addr <= 32'h86FF_FFFF))
+
 module mmu (
   input wire clk_i,
   input wire rst_i,
@@ -81,7 +92,7 @@ module mmu (
   output reg store_pf_o,
   output reg fetch_pf_o,
 
-  output wire invalid_addr_o,
+  output logic invalid_addr_o,
 
   // Wishbone master
   output reg         wb_cyc_o,
@@ -91,7 +102,9 @@ module mmu (
   output reg  [31:0] wb_dat_o,
   input  wire [31:0] wb_dat_i,
   output reg  [ 3:0] wb_sel_o,
-  output reg         wb_we_o
+  output reg         wb_we_o,
+
+  output reg [15:0] led_read_pte_o
 );
   // Virtual address
   typedef struct packed {
@@ -200,7 +213,7 @@ module mmu (
   //                    (32'h8500_0000 <= phy_addr && phy_addr <= 32'h85FF_FFFF) ||
   //                    (32'h8600_0000 <= phy_addr && phy_addr <= 32'h86FF_FFFF);
   assign phy_valid = 1'b1;
-  assign invalid_addr_o = ~phy_valid;
+  // assign invalid_addr_o = ~phy_valid;
   assign direct = satp.mode == 1'b0 || privilege_i == `PRIVILEGE_M;
 
   // Translation related signals
@@ -210,8 +223,8 @@ module mmu (
 
   assign a = cur_level == 1'b1 ? {12'b0, satp.ppn} << `PAGE_SIZE_SHIFT
                                : {12'b0, read_pte.ppn_1, read_pte.ppn_0} << `PAGE_SIZE_SHIFT;
-  assign pte_addr = cur_level == 1'b1 ? a + (v_addr.vpn_1 << `PTE_SIZE_SHIFT)
-                                      : a + (v_addr.vpn_0 << `PTE_SIZE_SHIFT);
+  assign pte_addr = cur_level == 1'b1 ? a + ({12'b0, v_addr.vpn_1} << `PTE_SIZE_SHIFT)
+                                      : a + ({12'b0, v_addr.vpn_0} << `PTE_SIZE_SHIFT);
 
   p_addr_t phy_addr;
 
@@ -250,6 +263,7 @@ module mmu (
       wb_cyc_o <= 1'b0;
       wb_stb_o <= 1'b0;
       wb_we_o <= 1'b0;
+      invalid_addr_o <= 1'b0;
 
       `INIT_TLB
     end else begin
@@ -262,8 +276,9 @@ module mmu (
             state <= STATE_DONE;
 
           end else if (r_en | w_en) begin
-            if (direct | tlb_hit) begin
-              if (~phy_valid) begin
+            if (direct) begin
+              if (!`PHY_ADDR_VALID) begin
+                invalid_addr_o <= 1'b1;
                 ack_o <= 1'b1;
                 state <= STATE_DONE;
               end else begin
@@ -282,10 +297,14 @@ module mmu (
                 // End wishbone request
                 wb_cyc_o <= 1'b0;
                 wb_stb_o <= 1'b0;
+                if (v_addr_i == 32'h100) begin
+                  led_read_pte_o <= {7'b1111111, read_pte[7:0]};
+                end
                 // Decode PTE
                 if (~read_pte.v | (~read_pte.r & read_pte.w)) begin
                   // Invalid PTE, raise page fault
                   pf_occur <= 1'b1;
+                  led_read_pte_o <= {7'b1000000, read_pte[7:0]};
                   ack_o <= 1'b1;
 
                   state <= STATE_DONE;
@@ -299,32 +318,41 @@ module mmu (
                         (fetch_en_i & ~read_pte.x)) begin
                       // Illegal memory access, raise page fault
                       pf_occur <= 1'b1;
+                      led_read_pte_o <= {7'b1100000, read_pte[7:0]};
                       ack_o <= 1'b1;
                       state <= STATE_DONE;
                     end else if (cur_level == 1'b1 && read_pte.ppn_0 != 0) begin
                       // Misaligned superpage, raise page fault
                       pf_occur <= 1'b1;
+                      led_read_pte_o <= {7'b1110000, 7'b0, cur_level};
                       ack_o <= 1'b1;
                       state <= STATE_DONE;
-                    end else if (~read_pte.a | (store_en_i & ~read_pte.d)) begin
+                    end /*else if (~read_pte.a | (store_en_i & ~read_pte.d)) begin
                       // According to the spec, we can either raise a page fault or update the PTE
                       // FIXME: Just raise a page fault here, I don't know if this works
                       pf_occur <= 1'b1;
+                      led_read_pte_o <= {7'b1111000, read_pte[7:0]};
                       ack_o <= 1'b1;
                       state <= STATE_DONE;
-                    end else begin
+                    end*/ else begin
                       if (!phy_valid) begin
                         ack_o <= 1'b1;
                         state <= STATE_DONE;
                       end else begin
-                        // Valid memory access, update TLB
-                        tlb[tlb_tag].index <= v_addr_index;
-                        tlb[tlb_tag].ppn <= {read_pte.ppn_1, read_pte.ppn_0};
-                        tlb[tlb_tag].asid <= satp.asid;
-                        tlb[tlb_tag].valid <= 1'b1;
+                        if (!`PHY_ADDR_VALID) begin
+                          invalid_addr_o <= 1'b1;
+                          ack_o <= 1'b1;
+                          state <= STATE_DONE;
+                        end else begin
+                          // Valid memory access, update TLB
+                          tlb[tlb_tag].index <= v_addr_index;
+                          tlb[tlb_tag].ppn <= {read_pte.ppn_1, read_pte.ppn_0};
+                          tlb[tlb_tag].asid <= satp.asid;
+                          tlb[tlb_tag].valid <= 1'b1;
 
-                        `SEND_WB_REQ
-                        state <= STATE_MEM_ACCESS;
+                          `SEND_WB_REQ
+                          state <= STATE_MEM_ACCESS;
+                        end
                       end
                     end
                   end else begin
@@ -332,6 +360,7 @@ module mmu (
                     if (cur_level == 1'b0) begin
                       // Raise page fault on level == 0
                       pf_occur <= 1'b1;
+                      led_read_pte_o <= {7'b1111100, 7'b0, cur_level};
                       ack_o <= 1'b1;
 
                       state <= STATE_DONE;
@@ -367,6 +396,7 @@ module mmu (
           pf_occur <= 1'b0;
           ack_o <= 1'b0;
           cur_level <= 1'b1;
+          invalid_addr_o <= 1'b0;
 
           state <= STATE_FETCH_PTE;
         end

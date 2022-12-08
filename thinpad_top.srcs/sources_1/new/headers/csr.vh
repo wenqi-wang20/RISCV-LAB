@@ -32,6 +32,9 @@
 `define CSR_SIP_ADDR      12'h144
 `define CSR_SATP_ADDR     12'h180
 
+`define CSR_TIME_ADDR     12'hc01
+`define CSR_TIMEH_ADDR    12'hc81
+
 // These are MMIO registers
 `define CSR_MTIME_MEM_ADDR    32'h200bff8
 `define CSR_MTIMECMP_MEM_ADDR 32'h2004000
@@ -187,6 +190,8 @@ typedef struct packed {
   logic [ 8:0] asid; // Address space identifier
   logic [21:0] ppn;  // the physical page number (PPN) of the root page table
 } csr_satp_t;
+
+typedef logic [63:0] csr_time_t;
 // ===== End CSR definitions =====
 
 `endif

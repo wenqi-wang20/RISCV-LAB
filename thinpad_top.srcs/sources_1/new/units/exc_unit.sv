@@ -59,6 +59,8 @@ csr_sie_t      sie_reg;
 csr_sip_t      sip_reg;
 csr_satp_t     satp_reg;
 
+csr_time_t     time_reg;
+
 // The sstatus, sie and sip are considered hard-wired subset of
 // mstatus, mie and mip, respectively
 always_comb begin
@@ -105,8 +107,10 @@ assign w_privilege = csr_waddr_i[9:8];
 
 // == Privilege and accessbility checking ==
 always_comb begin
-  invalid_r_o = (privilege_i < r_privilege);
-  invalid_w_o = (w_access == 2'b11) | (privilege_i < w_privilege);
+  // invalid_r_o = (privilege_i < r_privilege);
+  // invalid_w_o = (w_access == 2'b11) | (privilege_i < w_privilege);
+  invalid_r_o = 1'b0;
+  invalid_w_o = 1'b0;
 end
 
 // ===== Hard-wired read registers =====
@@ -136,6 +140,8 @@ always_comb begin
     `CSR_SIE_ADDR: csr_rdata_o = sie_reg;
     `CSR_SIP_ADDR: csr_rdata_o = sip_reg;
     `CSR_SATP_ADDR: csr_rdata_o = satp_reg;
+    `CSR_TIME_ADDR: csr_rdata_o = time_reg[31:0];
+    `CSR_TIMEH_ADDR: csr_rdata_o = time_reg[63:32];
     default: csr_rdata_o = 32'h0; // FIXME: Do we need to do anything here?
   endcase
 end
@@ -248,8 +254,21 @@ always_comb begin
       nxt_privilege_o = `PRIVILEGE_S;
     end
   end else if (exc_ret_i) begin
-    next_pc_o = mepc_reg;
-    nxt_privilege_o = mstatus_reg.mpp;
+    if (privilege_i == `PRIVILEGE_M) begin
+      nxt_privilege_o = mstatus_reg.mpp;
+      next_pc_o = mepc_reg;
+    end else if (privilege_i == `PRIVILEGE_S) begin
+      nxt_privilege_o = mstatus_reg.spp;
+      next_pc_o = sepc_reg;
+    end
+  end
+end
+
+always_ff @(posedge clk_i) begin
+  if (rst_i) begin
+    time_reg <= 0;
+  end else begin
+    time_reg <= time_reg + 1;
   end
 end
 
@@ -275,7 +294,6 @@ always_ff @(posedge clk_i) begin
     stvec_reg <= 0;
     sscratch_reg <= 0;
     satp_reg <= 0;
-
   end else if (exc_en_i) begin
     if (!deleg_exc) begin
       // Set cause

@@ -368,7 +368,7 @@ module mem_stage(
       end
     endcase
     exc_sig_csr_gen = `EXC_SIG_NULL;
-    if ((csr_invalid_r_i || csr_invalid_w_i) && csr_wen_o) begin
+    if (csr_invalid_r_i || (csr_invalid_w_i && csr_wen_o)) begin
       exc_sig_csr_gen.exc_occur = 1'b1;
       exc_sig_csr_gen.exc_ret = 1'b0;
       exc_sig_csr_gen.cur_pc = pc;
