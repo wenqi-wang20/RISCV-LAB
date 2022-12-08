@@ -261,7 +261,7 @@ module mmu (
             state <= STATE_DONE;
 
           end else if (r_en | w_en) begin
-            if (direct) begin
+            if (direct/*TODO: | tlb_hit*/) begin
               if (!`PHY_ADDR_VALID) begin
                 invalid_addr_o <= 1'b1;
                 ack_o <= 1'b1;
