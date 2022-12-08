@@ -375,9 +375,7 @@ module thinpad_top (
     .wb_dat_o(wbm_dat_o),
     .wb_dat_i(wbm_dat_i),
     .wb_sel_o(wbm_sel_o),
-    .wb_we_o(wbm_we_o),
-
-    .led_read_pte_o(leds)
+    .wb_we_o(wbm_we_o)
   );
 
   mmu_arbiter_2 u_mmu_arbiter_2(
@@ -538,9 +536,7 @@ module thinpad_top (
     .exc_privilege_o(exc_privilege),
 
     .exc_next_pc_i(exc_next_pc),
-    .exc_nxt_privilege_i(exc_nxt_privilege),
-
-    .led_pc_o()
+    .exc_nxt_privilege_i(exc_nxt_privilege)
   );
 
   exc_unit u_exc_unit(
