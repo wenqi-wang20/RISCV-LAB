@@ -154,9 +154,9 @@ assign uti_occur = mie_reg.utie & mip_reg.utip;
 assign usi_occur = mie_reg.usie & mip_reg.usip;
 
 wire m_has_interrupt, s_has_interrupt, u_has_interrupt;
-assign m_has_interrupt = (mei_occur | mti_occur | msi_occur) & mstatus_reg.mie;
-assign s_has_interrupt = (sei_occur | sti_occur | ssi_occur) & mstatus_reg.sie;
-assign u_has_interrupt = (uei_occur | uti_occur | usi_occur) & mstatus_reg.uie;
+assign m_has_interrupt = mei_occur | mti_occur | msi_occur;
+assign s_has_interrupt = sei_occur | sti_occur | ssi_occur;
+assign u_has_interrupt = uei_occur | uti_occur | usi_occur;
 
 logic [1:0] interrupt_level;
 logic       interrupt_occur;
