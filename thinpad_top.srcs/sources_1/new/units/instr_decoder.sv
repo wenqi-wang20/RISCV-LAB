@@ -211,6 +211,10 @@ module instr_decoder(
                 alu_op_o = ALU_PACK;
                 instr_legal_o = 1'b1;
               end
+              7'b001_0100: begin // XPERM8
+                alu_op_o = ALU_XPERM8;
+                instr_legal_o = 1'b1;
+              end
               default: begin
                 alu_op_o = ALU_ADD;
                 instr_legal_o = 1'b0;

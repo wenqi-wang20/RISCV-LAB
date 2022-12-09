@@ -15,6 +15,7 @@ typedef enum logic [`ALU_OP_T_WIDTH-1:0] {
   ALU_SLTU,
   ALU_SBCLR,
   ALU_MIN,
-  ALU_PACK
+  ALU_PACK,
+  ALU_XPERM8
 } alu_op_t;
 `endif

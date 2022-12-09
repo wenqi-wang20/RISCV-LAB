@@ -19,6 +19,10 @@ module alu(
   logic [31:0] min_result;
   logic [31:0] pack_result;
 
+  logic [7:0]  ele[3:0];
+  logic [7:0]  idx[3:0];
+  logic [31:0] xperm8_result;
+
   always_comb begin
     add_result = a + b;
     sub_result = a - b;
@@ -33,6 +37,18 @@ module alu(
     sbclr_result = a & ~({31'b0, 1'b1} << (b[4:0]));
     min_result = $signed(a) < $signed(b) ? a : b;
     pack_result = {b[15:0], a[15:0]};
+    ele[0] = a[ 7: 0];
+    ele[1] = a[15: 8];
+    ele[2] = a[23:16];
+    ele[3] = a[31:24];
+    idx[0] = b[ 7: 0];
+    idx[1] = b[15: 8];
+    idx[2] = b[23:16];
+    idx[3] = b[31:24];
+    xperm8_result[ 7: 0] = idx[0] <= 3 ? ele[idx[0]] : 8'b0;
+    xperm8_result[15: 8] = idx[1] <= 3 ? ele[idx[1]] : 8'b0;
+    xperm8_result[23:16] = idx[2] <= 3 ? ele[idx[2]] : 8'b0;
+    xperm8_result[31:24] = idx[3] <= 3 ? ele[idx[3]] : 8'b0;
   end
 
   assign result = op == ALU_ADD ? add_result
@@ -48,5 +64,6 @@ module alu(
                 : op == ALU_SBCLR ? sbclr_result
                 : op == ALU_MIN ? min_result
                 : op == ALU_PACK ? pack_result
+                : op == ALU_XPERM8 ? xperm8_result
                 : 32'b0;
 endmodule
