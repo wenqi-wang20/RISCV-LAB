@@ -246,7 +246,7 @@ always_comb begin
                   {mtvec_reg.base, 2'b00} + (exc_code << 2); /* vectored */
       nxt_privilege_o = `PRIVILEGE_M;
     end else begin
-      next_pc_o = stvec_reg.mode == 1'b0 ?
+      next_pc_o = stvec_reg.mode == 2'b00 ?
                   {stvec_reg.base, 2'b00} : /* direct */
                   {stvec_reg.base, 2'b00} + (exc_code << 2); /* vectored */
       nxt_privilege_o = `PRIVILEGE_S;
