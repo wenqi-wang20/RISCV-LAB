@@ -107,10 +107,8 @@ assign w_privilege = csr_waddr_i[9:8];
 
 // == Privilege and accessbility checking ==
 always_comb begin
-  // invalid_r_o = (privilege_i < r_privilege);
-  // invalid_w_o = (w_access == 2'b11) | (privilege_i < w_privilege);
-  invalid_r_o = 1'b0;
-  invalid_w_o = 1'b0;
+  invalid_r_o = (privilege_i < r_privilege);
+  invalid_w_o = (w_access == 2'b11) | (privilege_i < w_privilege);
 end
 
 // ===== Hard-wired read registers =====
