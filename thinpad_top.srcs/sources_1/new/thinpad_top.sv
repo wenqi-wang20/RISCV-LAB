@@ -1,4 +1,4 @@
-`default_nettype none
+ `default_nettype none
 
 module thinpad_top (
     input wire clk_50M,     // 50MHz 时钟输入
@@ -42,7 +42,7 @@ module thinpad_top (
 
     // Flash 存储器信号，参�?? JS28F640 芯片手册
     output wire [22:0] flash_a,  // Flash 地址，a0 仅在 8bit 模式有效�?16bit 模式无意�?
-    inout wire [15:0] flash_d,  // Flash 数据
+    inout wire  [15:0] flash_d,  // Flash 数据
     output wire flash_rp_n,  // Flash 复位信号，低有效
     output wire flash_vpen,  // Flash 写保护信号，低电平时不能擦除、烧�?
     output wire flash_ce_n,  // Flash 片�?�信号，低有�?
@@ -245,13 +245,20 @@ module thinpad_top (
     else reset_of_clk10M <= 1'b0;
   end
 
+  logic reset_of_clk20M;
+  // 异步复位，同步释放，�? locked 信号转为后级电路的复�? reset_of_clk10M
+  always_ff @(posedge clk_20M or negedge locked) begin
+    if (~locked) reset_of_clk20M <= 1'b1;
+    else reset_of_clk20M <= 1'b0;
+  end
+
   /* =========== Demo code end =========== */
 
   logic sys_clk;
   logic sys_rst;
 
   assign sys_clk = clk_20M;
-  assign sys_rst = reset_of_clk10M;
+  assign sys_rst = reset_of_clk20M;
 
   // 本实验不使用 CPLD 串口，禁用防止�?�线冲突
   assign uart_rdn = 1'b1;
@@ -572,6 +579,8 @@ module thinpad_top (
 
   /* =========== Wishbone MUX begin =========== */
   // Wishbone MUX (Masters) => bus slaves
+
+  // for baseram
   logic wbs0_cyc_o;
   logic wbs0_stb_o;
   logic wbs0_ack_i;
@@ -581,6 +590,7 @@ module thinpad_top (
   logic [3:0] wbs0_sel_o;
   logic wbs0_we_o;
 
+  // for extraram
   logic wbs1_cyc_o;
   logic wbs1_stb_o;
   logic wbs1_ack_i;
@@ -590,6 +600,7 @@ module thinpad_top (
   logic [3:0] wbs1_sel_o;
   logic wbs1_we_o;
 
+  // for uart
   logic wbs2_cyc_o;
   logic wbs2_stb_o;
   logic wbs2_ack_i;
@@ -599,6 +610,7 @@ module thinpad_top (
   logic [3:0] wbs2_sel_o;
   logic wbs2_we_o;
 
+  // for blockram 0
   logic wbs3_cyc_o;
   logic wbs3_stb_o;
   logic wbs3_ack_i;
@@ -608,7 +620,57 @@ module thinpad_top (
   logic [3:0] wbs3_sel_o;
   logic wbs3_we_o;
 
-  wb_mux_4 wb_mux (
+  // for flash
+  logic wbs4_cyc_o;
+  logic wbs4_stb_o;
+  logic wbs4_ack_i;
+  logic [31:0] wbs4_adr_o;
+  logic [31:0] wbs4_dat_o;
+  logic [31:0] wbs4_dat_i;
+  logic [3:0] wbs4_sel_o;
+  logic wbs4_we_o;
+
+  // for blockram 1
+  logic wbs5_cyc_o;
+  logic wbs5_stb_o;
+  logic wbs5_ack_i;
+  logic [31:0] wbs5_adr_o;
+  logic [31:0] wbs5_dat_o;
+  logic [31:0] wbs5_dat_i;
+  logic [3:0] wbs5_sel_o;
+  logic wbs5_we_o;
+
+  // for GPIO
+  logic wbs6_cyc_o;
+  logic wbs6_stb_o;
+  logic wbs6_ack_i;
+  logic [31:0] wbs6_adr_o;
+  logic [31:0] wbs6_dat_o;
+  logic [31:0] wbs6_dat_i;
+  logic [3:0] wbs6_sel_o;
+  logic wbs6_we_o;
+
+  // for vgacashe
+  logic wbs7_cyc_o;
+  logic wbs7_stb_o;
+  logic wbs7_ack_i;
+  logic [31:0] wbs7_adr_o;
+  logic [31:0] wbs7_dat_o;
+  logic [31:0] wbs7_dat_i;
+  logic [3:0] wbs7_sel_o;
+  logic wbs7_we_o;
+
+  // for CSR mtime, mtimecmp
+  logic wbs8_cyc_o;
+  logic wbs8_stb_o;
+  logic wbs8_ack_i;
+  logic [31:0] wbs8_adr_o;
+  logic [31:0] wbs8_dat_o;
+  logic [31:0] wbs8_dat_i;
+  logic [3:0] wbs8_sel_o;
+  logic wbs8_we_o;
+
+  wb_mux_9 wb_mux (
       .clk(sys_clk),
       .rst(sys_rst),
 
@@ -672,9 +734,10 @@ module thinpad_top (
       .wbs2_rty_i('0),
       .wbs2_cyc_o(wbs2_cyc_o),
 
-      // Slave interface 3 (to Memory-mapped CSRs)
-      .wbs3_addr    (32'h0200_0000),
-      .wbs3_addr_msk(32'h03ff_0000),
+      // Slave interface 3 (to block ram 0)
+      // Address range: 0x8100_0000 ~ 0x81FF_FFFF
+      .wbs3_addr    (32'h8100_0000),
+      .wbs3_addr_msk(32'hFF00_0000),
 
       .wbs3_adr_o(wbs3_adr_o),
       .wbs3_dat_i(wbs3_dat_i),
@@ -685,7 +748,86 @@ module thinpad_top (
       .wbs3_ack_i(wbs3_ack_i),
       .wbs3_err_i('0),
       .wbs3_rty_i('0),
-      .wbs3_cyc_o(wbs3_cyc_o)
+      .wbs3_cyc_o(wbs3_cyc_o),
+
+      // Slave interface 4 (to flash)
+      // Address range: 0x8300_0000 ~ 0x83FF_FFFF
+      .wbs4_addr    (32'h8300_0000),
+      .wbs4_addr_msk(32'hFF00_0000),
+
+      .wbs4_adr_o(wbs4_adr_o),
+      .wbs4_dat_i(wbs4_dat_i),
+      .wbs4_dat_o(wbs4_dat_o),
+      .wbs4_we_o (wbs4_we_o),
+      .wbs4_sel_o(wbs4_sel_o),
+      .wbs4_stb_o(wbs4_stb_o),
+      .wbs4_ack_i(wbs4_ack_i),
+      .wbs4_err_i('0),
+      .wbs4_rty_i('0),
+      .wbs4_cyc_o(wbs4_cyc_o),
+
+      // Slave interface 5 (to block ram 1)
+      // Address range: 0x8400_0000 ~ 0x84FF_FFFF
+      .wbs5_addr    (32'h8400_0000),
+      .wbs5_addr_msk(32'hFF00_0000),
+
+      .wbs5_adr_o(wbs5_adr_o),
+      .wbs5_dat_i(wbs5_dat_i),
+      .wbs5_dat_o(wbs5_dat_o),
+      .wbs5_we_o (wbs5_we_o),
+      .wbs5_sel_o(wbs5_sel_o),
+      .wbs5_stb_o(wbs5_stb_o),
+      .wbs5_ack_i(wbs5_ack_i),
+      .wbs5_err_i('0),
+      .wbs5_rty_i('0),
+      .wbs5_cyc_o(wbs5_cyc_o), 
+  
+      // Slave interface 6 (to gpio)
+      // Address range: 0x8500_0000 ~ 0x85FF_FFFF
+      .wbs6_addr    (32'h8500_0000),
+      .wbs6_addr_msk(32'hFF00_0000),
+
+      .wbs6_adr_o(wbs6_adr_o),
+      .wbs6_dat_i(wbs6_dat_i),
+      .wbs6_dat_o(wbs6_dat_o),
+      .wbs6_we_o (wbs6_we_o),
+      .wbs6_sel_o(wbs6_sel_o),
+      .wbs6_stb_o(wbs6_stb_o),
+      .wbs6_ack_i(wbs6_ack_i),
+      .wbs6_err_i('0),
+      .wbs6_rty_i('0),
+      .wbs6_cyc_o(wbs6_cyc_o), 
+  
+      // Slave interface 7 (to vgacache register)
+      // Address range: 0x8600_0000 ~ 0x86FF_FFFF
+      .wbs7_addr    (32'h8600_0000),
+      .wbs7_addr_msk(32'hFF00_0000),
+
+      .wbs7_adr_o(wbs7_adr_o),
+      .wbs7_dat_i(wbs7_dat_i),
+      .wbs7_dat_o(wbs7_dat_o),
+      .wbs7_we_o (wbs7_we_o),
+      .wbs7_sel_o(wbs7_sel_o),
+      .wbs7_stb_o(wbs7_stb_o),
+      .wbs7_ack_i(wbs7_ack_i),
+      .wbs7_err_i('0),
+      .wbs7_rty_i('0),
+      .wbs7_cyc_o(wbs7_cyc_o),
+
+      // Slave interface 3 (to Memory-mapped CSRs)
+      .wbs8_addr    (32'h0200_0000),
+      .wbs8_addr_msk(32'h03ff_0000),
+
+      .wbs8_adr_o(wbs8_adr_o),
+      .wbs8_dat_i(wbs8_dat_i),
+      .wbs8_dat_o(wbs8_dat_o),
+      .wbs8_we_o (wbs8_we_o),
+      .wbs8_sel_o(wbs8_sel_o),
+      .wbs8_stb_o(wbs8_stb_o),
+      .wbs8_ack_i(wbs8_ack_i),
+      .wbs8_err_i('0),
+      .wbs8_rty_i('0),
+      .wbs8_cyc_o(wbs8_cyc_o)
   );
 
   /* =========== Wishbone MUX end =========== */
@@ -771,20 +913,263 @@ module thinpad_top (
     .clk_i(sys_clk),
     .rst_i(sys_rst),
 
-    .wb_cyc_i(wbs3_cyc_o),
-    .wb_stb_i(wbs3_stb_o),
-    .wb_ack_o(wbs3_ack_i),
-    .wb_adr_i(wbs3_adr_o),
-    .wb_dat_i(wbs3_dat_o),
-    .wb_dat_o(wbs3_dat_i),
-    .wb_sel_i(wbs3_sel_o),
-    .wb_we_i (wbs3_we_o),
+    .wb_cyc_i(wbs8_cyc_o),
+    .wb_stb_i(wbs8_stb_o),
+    .wb_ack_o(wbs8_ack_i),
+    .wb_adr_i(wbs8_adr_o),
+    .wb_dat_i(wbs8_dat_o),
+    .wb_dat_o(wbs8_dat_i),
+    .wb_sel_i(wbs8_sel_o),
+    .wb_we_i (wbs8_we_o),
 
     // machine timer interrupt signals to the CPU
     .mti_occur_o(mti_occur),
     .mti_occur_n_o(mti_occur_n)
   );
 
+  // blockram_0 控制信号
+  logic [7:0] bram_0_rdata;
+  logic [7:0] bram_0_wdata;
+  logic [16:0] bram_0_raddr;
+  logic [16:0] bram_0_waddr;
+  logic bram_0_wea;
+  logic bram_0_ena;
+
+  // blockram_1 控制信号
+  logic [7:0] bram_1_rdata;
+  logic [7:0] bram_1_wdata;
+  logic [16:0] bram_1_raddr;
+  logic [16:0] bram_1_waddr;
+  logic bram_1_wea;
+  logic bram_1_ena;
+
+
+  // block RAM 控制器模�?
+  bram_controller #(
+      .WISHBONE_DATA_WIDTH(32),
+      .WISHBONE_ADDR_WIDTH(32),
+
+      .BRAM_DATA_WIDTH(8),
+      .BRAM_ADDR_WIDTH(17)
+  ) bram_controller_0 (
+      .clk_i(sys_clk),
+      .rst_i(sys_rst),
+
+      // Wishbone slave (to MUX)
+      .wb_cyc_i(wbs3_cyc_o),
+      .wb_stb_i(wbs3_stb_o),
+      .wb_ack_o(wbs3_ack_i),
+      .wb_adr_i(wbs3_adr_o),
+      .wb_dat_i(wbs3_dat_o),
+      .wb_dat_o(wbs3_dat_i),
+      .wb_sel_i(wbs3_sel_o),
+      .wb_we_i (wbs3_we_o),
+
+      // To BRAM chip
+      .bram_data_i(bram_0_rdata),
+      .bram_data_o(bram_0_wdata),
+      .bram_addr_a_o(bram_0_waddr),
+      .bram_addr_b_o(bram_0_raddr),
+      .bram_wea_o(bram_0_wea)
+  );
+
+  // block RAM 控制器模
+  bram_controller #(
+      .WISHBONE_DATA_WIDTH(32),
+      .WISHBONE_ADDR_WIDTH(32),
+
+      .BRAM_DATA_WIDTH(8),
+      .BRAM_ADDR_WIDTH(17)
+  ) bram_controller_1 (
+      .clk_i(sys_clk),
+      .rst_i(sys_rst),
+
+      // Wishbone slave (to MUX)
+      .wb_cyc_i(wbs5_cyc_o),
+      .wb_stb_i(wbs5_stb_o),
+      .wb_ack_o(wbs5_ack_i),
+      .wb_adr_i(wbs5_adr_o),
+      .wb_dat_i(wbs5_dat_o),
+      .wb_dat_o(wbs5_dat_i),
+      .wb_sel_i(wbs5_sel_o),
+      .wb_we_i (wbs5_we_o),
+
+      // To BRAM chip
+      .bram_data_i(bram_1_rdata),
+      .bram_data_o(bram_1_wdata),
+      .bram_addr_a_o(bram_1_waddr),
+      .bram_addr_b_o(bram_1_raddr),
+      .bram_wea_o(bram_1_wea)
+  );
+
+  // flash 控制信号
+  assign flash_vpen = 1'b1;
+  assign flash_we_n = 1'b1;
+  assign flash_byte_n = 1'b0;
+  
+  flash_controller #(
+      .WISHBONE_DATA_WIDTH(32),
+      .WISHBONE_ADDR_WIDTH(32),
+
+      .FLASH_DATA_WIDTH(8),
+      .FLASH_ADDR_WIDTH(23)
+  ) flash_controller (
+      .clk_i(sys_clk),
+      .rst_i(sys_rst),
+
+      // Wishbone slave (to MUX)
+      .wb_cyc_i(wbs4_cyc_o),
+      .wb_stb_i(wbs4_stb_o),
+      .wb_ack_o(wbs4_ack_i),
+      .wb_adr_i(wbs4_adr_o),
+      .wb_dat_i(wbs4_dat_o),
+      .wb_dat_o(wbs4_dat_i),
+      .wb_sel_i(wbs4_sel_o),
+      .wb_we_i (wbs4_we_o),
+
+      // To flash chip
+      .flash_a_o(flash_a),
+      .flash_d(flash_d),
+      .flash_rp_o(flash_rp_n),
+      .flash_ce_o(flash_ce_n),
+      .flash_oe_o(flash_oe_n)
+  );
+
+  // GPIO 控制信号
+  gpio_controller #(
+      .WISHBONE_DATA_WIDTH(32),
+      .WISHBONE_ADDR_WIDTH(32)
+  ) gpio_controller (
+      .clk_i(sys_clk),
+      .rst_i(sys_rst),
+
+      // Wishbone slave (to MUX)
+      .wb_cyc_i(wbs6_cyc_o),
+      .wb_stb_i(wbs6_stb_o),
+      .wb_ack_o(wbs6_ack_i),
+      .wb_adr_i(wbs6_adr_o),
+      .wb_dat_i(wbs6_dat_o),
+      .wb_dat_o(wbs6_dat_i),
+      .wb_sel_i(wbs6_sel_o),
+      .wb_we_i (wbs6_we_o),
+
+      // To GPIO chip
+      .dip_sw(dip_sw),
+      .touch_btn(touch_btn),
+      .push_btn(push_btn)
+  );
+
+
   /* =========== Wishbone Slaves end =========== */
+
+  /* =========== VGA begin =========== */
+  // 图像输出演示，分辨率 800x600@75Hz，像素时钟为 50MHz
+  logic [11:0] hdata;
+  logic [11:0] vdata;
+  logic [ 7:0] rdata;
+  logic [7:0] pixel;
+  logic vga_de;
+  // 图片的放大�?�数，默认为 2^3 �?
+  logic vga_end;
+  logic [2:0] vga_scale;     
+  logic [16:0] bram_addr_st = 17'b0;
+
+  // block ram 信号，目前的数据宽度�? 8bit，地�?宽度�? 19bit
+  logic bram_ena_i = 1'b1;
+  logic bram_enb_i  = 1'b1;
+  logic bram_wea_i = 4'b0000;
+  logic [16:0] bram_addra_i = 19'b0;
+  logic [7:0] bram_data_i = 32'b0;
+  logic [16:0] bram_addrb_i;
+
+  // 不同 block ram 的数据读取
+  logic [7:0] bram_0_data_o;
+  logic [7:0] bram_1_data_o;
+  logic [7:0] real_bram_data;
+
+
+
+  assign video_red   = pixel[7:5];  // 红色
+  assign video_green = pixel[4:2];  // 绿色
+  assign video_blue  = pixel[1:0];  // 蓝色
+  assign video_clk   = clk_50M;
+  assign vga_de = video_de;
+
+
+  vga #(12, 800, 856, 976, 1040, 600, 637, 643, 666, 1, 1) vga800x600at75 (
+      .clk        (clk_50M),
+      .hdata      (hdata),             // 横向周期计数
+      .vdata      (vdata),             // 纵向周期计数
+      .hsync      (video_hsync),
+      .vsync      (video_vsync),
+      .data_enable(video_de)
+  );
+
+  vga_selector #(
+      .WISHBONE_DATA_WIDTH(32),
+      .WISHBONE_ADDR_WIDTH(32)
+  ) vga_selector (
+      .clk_i(sys_clk),
+      .rst_i(sys_rst),
+
+      // Wishbone slave (to MUX)
+      .wb_cyc_i(wbs7_cyc_o),
+      .wb_stb_i(wbs7_stb_o),
+      .wb_ack_o(wbs7_ack_i),
+      .wb_adr_i(wbs7_adr_o),
+      .wb_dat_i(wbs7_dat_o),
+      .wb_dat_o(wbs7_dat_i),
+      .wb_sel_i(wbs7_sel_o),
+      .wb_we_i (wbs7_we_o),
+
+      // vga interface
+      .vga_scale(vga_scale),
+      .vga_end(vga_end),
+
+      // bram read interface
+      .bram_0_data(bram_0_data_o),
+      .bram_1_data(bram_1_data_o),
+      .real_bram_data(real_bram_data)
+  );
+
+
+  vga_pic #(12, 800, 600, 1040, 666, 17) pic (
+      .vga_clk    (clk_50M),
+      .hdata      (hdata),
+      .vdata      (vdata),
+      .vga_scale  (vga_scale),
+      .pixel      (pixel),
+      .r_addr_st  (bram_addr_st),
+      .r_addr     (bram_addrb_i),
+      .r_data     (real_bram_data),
+      .vga_end    (vga_end)
+  );
+
+  pic_bram pic_mem_0 (
+    .clka         (sys_clk),
+    .ena          (bram_ena_i),
+    .wea          (bram_0_wea),
+    .addra        (bram_0_waddr),
+    .dina         (bram_0_wdata),
+    .clkb         (clk_50M),
+    .enb          (bram_enb_i),
+    .addrb        (bram_addrb_i),
+    .doutb        (bram_0_data_o)
+  );
+
+  pic_mem_1 pic_mem_1 (
+    .clka         (sys_clk),
+    .ena          (bram_ena_i),
+    .wea          (bram_1_wea),
+    .addra        (bram_1_waddr),
+    .dina         (bram_1_wdata),
+    .clkb         (clk_50M),
+    .enb          (bram_enb_i),
+    .addrb        (bram_addrb_i),
+    .doutb        (bram_1_data_o)
+  );
+
+  /* =========== VGA end =========== */
+  
 
 endmodule
