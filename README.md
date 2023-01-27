@@ -4,7 +4,7 @@
 
 成员：梁业升、田仁睿、王文琦
 
-<video src="assets/game.mp4"></video>
+<img src="assets\game.jpg" style="zoom:50%;" />
 
 **这里是我们的 FlappyBird Demo 视频播放[地址](https://user-images.githubusercontent.com/74406572/215109972-b71e1d14-f396-4614-a454-ebb9b76f74b0.mp4)，大家可以点击观看。**
 
