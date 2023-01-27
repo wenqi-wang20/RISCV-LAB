@@ -4,7 +4,7 @@
 
 成员：梁业升、田仁睿、王文琦
 
-<video src="assets\game.mp4"></video>
+<video src="assets/game.mp4"></video>
 
 ## 一、实验概述
 
@@ -28,7 +28,7 @@
 
 以下为我们 CPU 的数据通路（部分信号略去）：
 
-![cpu流水线.drawio](report.assets/cpu%E6%B5%81%E6%B0%B4%E7%BA%BF.drawio.png)
+<img src="assets/pipeline.png" style="zoom:50%;" />
 
 ## 三、流水线模块
 
@@ -151,7 +151,7 @@ vga 部分主要包括 `vga_pic` 和 `vga_selector` 两个模块：
 - `vga_pic` 模块的作用主要是根据扫描的行同步信号、列同步信号以及**分辨率信号**确定应当读取的显存区域的位置。
 - `vga_selector` 模块与 wishbone 总线相连。它的本质是关于 vga 硬件的一些属性寄存器，包括当前渲染的显存区域 `bram_sele_reg` ，当前显示的渲染分辨率 `vga_scale_reg`。同时，这些寄存器被映射到了总线上相应的地址，可以由用户程序来改写。
 
-![s](assets\double-ram.png)
+![s](assets/double-ram.png)
 
 **VGA 的渲染使用了双缓冲技术。**本次大实验，我们选取了两块读写深度为 8 bit，大小为 128Mbyte 的 blockram。在用户实时改变画面内容的时候，可以先向非显示区的缓冲片写入需要显示的内容，等待一整幅画面刷新完之后，得到 `vga_end` 信号，再将另外一个缓冲区的数据接到 vga 扫描上。这一部分是由 `vga_selector` 完成的。这样做可以完美避免画面撕裂的情况，同时也可以节约从一块缓冲区整个复制到另一块缓冲区的时间。
 
